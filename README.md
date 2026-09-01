@@ -39,6 +39,18 @@ stops being returned and the SSH connection is refused.
               WARDEN_HOST_ID              hashed SHA-256
 ```
 
+## Documentation
+
+The full documentation lives in [`docs/`](docs/):
+
+| Guide | Contents |
+|-------|----------|
+| [Architecture](docs/architecture.md) | End-to-end flow diagrams, component layout, technology choices, threat model. |
+| [Installation](docs/installation.md) | Server deployment (Docker/Compose, systemd) and OpenSSH host setup. |
+| [CLI Reference](docs/cli-reference.md) | Every `warden` command, its flags, console output, and exit codes. |
+| [Security](docs/security.md) | Host-token handling, key storage, OpenSSH hardening, reverse-proxy TLS. |
+| [Contributing](docs/contributing.md) | Setup, Go code standards, git workflow, and validation gates. |
+
 ## Features
 
 - **Ephemeral leases** — access exists only for a defined window, then expires
