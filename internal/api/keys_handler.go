@@ -24,7 +24,7 @@ func (s *Server) registerKeysRoutes(r chi.Router) {
 	// which calls this endpoint with the machine's bearer token and host ID.
 	// The token authenticates the machine; the resulting keys are scoped to
 	// the machine's leases.
-	r.Get("/api/v1/keys/{username}", hostAuth(s.db, s.handleGetUserKeys))
+	r.Get("/api/v1/keys/{username}", s.hostAuth(s.handleGetUserKeys))
 
 	r.Post("/api/v1/keys", s.handleAddKey)
 }
@@ -46,12 +46,12 @@ func (s *Server) handleGetUserKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(keys) == 0 {
-		logAudit(s.db, r, username, targetHost, actionKeyDenied, "No active lease or no keys")
+		s.logAudit(r, username, targetHost, actionKeyDenied, "No active lease or no keys")
 		http.Error(w, "no active keys found or lease expired", http.StatusNotFound)
 		return
 	}
 
-	logAudit(s.db, r, username, targetHost, actionKeyGranted, "Active lease found")
+	s.logAudit(r, username, targetHost, actionKeyGranted, "Active lease found")
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)

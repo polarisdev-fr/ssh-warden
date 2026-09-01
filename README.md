@@ -183,6 +183,38 @@ The effective `api_url` is resolved by priority: `--api` flag,
 effective username is resolved from `-u/--user`, then the config
 `default_user`, then the OS user.
 
+#### Environment variables
+
+| Variable              | Description                                                                 |
+|-----------------------|-----------------------------------------------------------------------------|
+| `WARDEN_API_URL`      | Fallback API URL for the CLI (after the `--api` flag, before the config).   |
+| `WARDEN_WEBHOOK_URL`  | Server-side webhook endpoint for critical audit notifications (optional).   |
+
+### Webhook Notifications
+
+The server can notify an external service whenever a critical audit event
+occurs. Set the optional `WARDEN_WEBHOOK_URL` environment variable when
+starting the server:
+
+```sh
+WARDEN_WEBHOOK_URL="https://hooks.example.com/xxx" go run ./cmd/server
+```
+
+When the variable is empty (or unset), notifications are silently disabled.
+When set, every `KEY_REQUEST_GRANTED`, `KEY_REQUEST_DENIED` and
+`HOST_AUTH_FAILED` event triggers an asynchronous, non-blocking webhook POST
+with a 3-second timeout, so the API response time is never affected.
+
+The payload format is chosen automatically:
+
+- **Discord** — if the URL contains `discord.com/api/webhooks`, a formatted
+  embed is sent, color-coded by outcome (green for granted, orange for
+  denied, red for failed authentication) with User, Target Host, Client IP,
+  Reason and Timestamp fields.
+- **Generic JSON** — otherwise a Slack / Gotify / Ntfy compatible payload is
+  sent: `{"event": "...", "username": "...", "target_host": "...", "reason":
+  "...", "client_ip": "...", "created_at": "..."}`.
+
 ## Roadmap
 
 - **mTLS** between hosts and the Warden API for mutual authentication.

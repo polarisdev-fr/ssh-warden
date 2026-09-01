@@ -9,17 +9,23 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/polarisdev-fr/ssh-warden/internal/database"
+	"github.com/polarisdev-fr/ssh-warden/internal/webhook"
 )
 
 // Server bundles the dependencies needed by the HTTP handlers and builds the
 // chi router.
 type Server struct {
-	db *database.DB
+	db       *database.DB
+	notifier webhook.Notifier
 }
 
-// NewServer creates an API Server backed by the given database.
-func NewServer(db *database.DB) *Server {
-	return &Server{db: db}
+// NewServer creates an API Server backed by the given database and notifier.
+// The notifier is optional; pass webhook.Nil() to disable notifications.
+func NewServer(db *database.DB, notifier webhook.Notifier) *Server {
+	if notifier == nil {
+		notifier = webhook.Nil()
+	}
+	return &Server{db: db, notifier: notifier}
 }
 
 // Handler constructs and returns the fully-configured HTTP router, including

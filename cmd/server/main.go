@@ -14,6 +14,7 @@ import (
 
 	"github.com/polarisdev-fr/ssh-warden/internal/api"
 	"github.com/polarisdev-fr/ssh-warden/internal/database"
+	"github.com/polarisdev-fr/ssh-warden/internal/webhook"
 )
 
 const (
@@ -39,7 +40,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:    defaultAddr,
-		Handler: api.NewServer(db).Handler(),
+		Handler: api.NewServer(db, webhook.New(os.Getenv("WARDEN_WEBHOOK_URL"))).Handler(),
 	}
 
 	// Run the server in the background and wait for an interrupt.

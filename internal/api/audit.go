@@ -4,8 +4,9 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
-	"github.com/polarisdev-fr/ssh-warden/internal/database"
+	"github.com/polarisdev-fr/ssh-warden/internal/models"
 )
 
 // Audit actions recorded to the audit_logs table.
@@ -33,18 +34,23 @@ func clientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
-// logAudit records an authorization decision. Recording failures are swallowed
-// so a logging error never blocks an authorization that has already been
-// decided.
-func logAudit(db auditWriter, r *http.Request, username, targetHost, action, reason string) {
-	db.RecordAudit(username, targetHost, action, reason, clientIP(r))
-}
+// logAudit builds an audit entry, persists it to the database and dispatches a
+// webhook notification. Recording and notification failures are swallowed (and
+// logged by the webhook layer) so they never block an authorization that has
+// already been decided.
+func (s *Server) logAudit(r *http.Request, username, targetHost, action, reason string) {
+	entry := models.AuditLog{
+		Username:   username,
+		TargetHost: targetHost,
+		Action:     action,
+		Reason:     reason,
+		ClientIP:   clientIP(r),
+		CreatedAt:  time.Now().UTC(),
+	}
 
-// auditWriter is the minimal persistence surface the API needs for audit
-// logging. *database.DB satisfies it.
-type auditWriter interface {
-	RecordAudit(username, targetHost, action, reason, clientIP string) error
-}
+	if err := s.db.RecordAudit(entry.Username, entry.TargetHost, entry.Action, entry.Reason, entry.ClientIP); err != nil {
+		return
+	}
 
-// compile-time check that *database.DB implements auditWriter.
-var _ auditWriter = (*database.DB)(nil)
+	s.notifier.Notify(entry)
+}
