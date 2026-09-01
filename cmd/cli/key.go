@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,15 +14,15 @@ var (
 	addKeyComment string
 )
 
-// newKeyCmd builds the "warden key add" command that registers a local public
-// key file with the Warden API for a given user.
+// newKeyCmd builds the "warden key" command group with its subcommands,
+// currently "warden key add".
 func newKeyCmd() *cobra.Command {
-	var keyCmd = &cobra.Command{
+	keyCmd := &cobra.Command{
 		Use:   "key",
 		Short: "Manage public keys",
 	}
 
-	var addCmd = &cobra.Command{
+	addCmd := &cobra.Command{
 		Use:   "add <path/to/key.pub>",
 		Short: "Register a public key for a user",
 		Args:  cobra.ExactArgs(1),
@@ -56,22 +53,12 @@ func runKeyAdd(cmd *cobra.Command, args []string) error {
 		"comment":    addKeyComment,
 	}
 
-	body, err := json.Marshal(payload)
+	body, status, err := newClient().post("/api/v1/keys", payload)
 	if err != nil {
-		return fmt.Errorf("serialization error: %w", err)
+		return err
 	}
-
-	endpoint := fmt.Sprintf("%s/api/v1/keys", apiURL)
-	resp, err := http.Post(endpoint, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("error contacting API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("key registration rejected (%d): %s", resp.StatusCode, string(respBody))
+	if status != http.StatusCreated {
+		return fmt.Errorf("key registration rejected (%d): %s", status, string(body))
 	}
 
 	var created struct {
@@ -79,8 +66,8 @@ func runKeyAdd(cmd *cobra.Command, args []string) error {
 		PublicKey string `json:"public_key"`
 		Comment   string `json:"comment"`
 	}
-	if err := json.Unmarshal(respBody, &created); err != nil {
-		return fmt.Errorf("unexpected response: %w", err)
+	if err := decodeJSON(body, &created); err != nil {
+		return err
 	}
 
 	if created.Comment == "" {

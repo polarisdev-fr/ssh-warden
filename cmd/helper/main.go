@@ -11,12 +11,9 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
-	"time"
 )
 
 // tokenFilePath is the fallback location for the machine host token when the
@@ -39,12 +36,19 @@ func loadHostToken() string {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: ssh-warden-helper <username>")
+	if err := run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
+}
 
-	username := os.Args[1]
+// run orchestrates the helper: parse arguments, resolve config, fetch keys
+// and print them. It returns a sentinel-free error for failures.
+func run(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: ssh-warden-helper <username>")
+	}
+	username := args[1]
 
 	apiURL := os.Getenv("WARDEN_API_URL")
 	if apiURL == "" {
@@ -56,62 +60,31 @@ func main() {
 		hostID, _ = os.Hostname()
 	}
 
-	u, err := url.Parse(fmt.Sprintf("%s/api/v1/keys/%s", apiURL, url.PathEscape(username)))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error building URL: %v\n", err)
-		os.Exit(1)
-	}
-
-	if hostID != "" {
-		q := u.Query()
-		q.Set("host", hostID)
-		u.RawQuery = q.Encode()
-	}
-
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-	}
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating request: %v\n", err)
-		os.Exit(1)
-	}
-
 	token := loadHostToken()
 	if token == "" {
-		fmt.Fprintln(os.Stderr, "Error: no host token found (set WARDEN_HOST_TOKEN or create /etc/ssh-warden/token)")
-		os.Exit(1)
+		return fmt.Errorf("error: no host token found (set WARDEN_HOST_TOKEN or create %s)", tokenFilePath)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := client.Do(req)
+	body, status, err := fetchKeys(apiURL, username, hostID, token)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error contacting Warden API: %v\n", err)
-		os.Exit(1)
+		return err
 	}
-	defer resp.Body.Close()
 
-	switch resp.StatusCode {
+	switch status {
 	case http.StatusUnauthorized:
-		fmt.Fprintln(os.Stderr, "Error: host token missing or malformed (401 Unauthorized)")
-		os.Exit(1)
+		return fmt.Errorf("error: host token missing or malformed (401 Unauthorized)")
 	case http.StatusForbidden:
-		fmt.Fprintln(os.Stderr, "Error: host token rejected for this host (403 Forbidden)")
-		os.Exit(1)
+		return fmt.Errorf("error: host token rejected for this host (403 Forbidden)")
 	case http.StatusNotFound:
 		// No active keys for this user: print nothing so OpenSSH denies the
 		// connection cleanly.
-		os.Exit(0)
+		return nil
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		fmt.Fprintf(os.Stderr, "Warden API returned HTTP %d\n", resp.StatusCode)
-		os.Exit(1)
+	if status != http.StatusOK {
+		return fmt.Errorf("Warden API returned HTTP %d", status)
 	}
 
-	if _, err := io.Copy(os.Stdout, resp.Body); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing to stdout: %v\n", err)
-		os.Exit(1)
-	}
+	_, err = os.Stdout.Write(body)
+	return err
 }

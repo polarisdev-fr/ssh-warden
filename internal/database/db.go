@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -77,4 +78,69 @@ func InitDB(dbPath string) (*DB, error) {
 	}
 
 	return &DB{conn: conn}, nil
+}
+
+// SeedData injects deterministic development data so the project can be
+// exercised immediately: an admin user with a mock key and lease, plus two
+// host entries sharing a known test token ("secret-host-token-123"). User
+// seeding is a no-op once the users table already contains data, while host
+// seeding runs whenever the hosts table is empty so pre-existing databases
+// still get usable test hosts.
+func (db *DB) SeedData() error {
+	var userCount int
+	err := db.conn.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
+	if err != nil {
+		return err
+	}
+	if userCount == 0 {
+		if err := db.seedDemoUser(); err != nil {
+			return err
+		}
+	}
+
+	var hostCount int
+	if err := db.conn.QueryRow("SELECT COUNT(*) FROM hosts").Scan(&hostCount); err != nil {
+		return err
+	}
+	if hostCount == 0 {
+		if err := db.RegisterHost("srv-test-01", "secret-host-token-123"); err != nil {
+			return err
+		}
+		if err := db.RegisterHost("*", "secret-host-token-123"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// seedDemoUser creates the admin user with a mock key and a catch-all active
+// lease. It is meant to be called from SeedData only when the users table is
+// empty.
+func (db *DB) seedDemoUser() error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec("INSERT INTO users (username) VALUES ('admin')")
+	if err != nil {
+		return err
+	}
+	userID, _ := res.LastInsertId()
+
+	mockPubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIValidActiveKeyMockForAdminDevelopment admin@local"
+	_, err = tx.Exec("INSERT INTO ssh_keys (user_id, public_key, comment) VALUES (?, ?, 'dev-laptop')", userID, mockPubKey)
+	if err != nil {
+		return err
+	}
+
+	expiresAt := time.Now().UTC().Add(2 * time.Hour)
+	_, err = tx.Exec("INSERT INTO leases (user_id, target_host, expires_at, reason) VALUES (?, '*', ?, 'Emergency maintenance')", userID, expiresAt)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }

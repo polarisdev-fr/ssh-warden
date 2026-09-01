@@ -1,0 +1,14 @@
+# Build artifacts
+/bin/
+*.exe
+*.test
+*.out
+
+# Database (SQLite)
+warden.db
+warden.db-shm
+warden.db-wal
+
+# IDE
+.idea/
+.vscode/
