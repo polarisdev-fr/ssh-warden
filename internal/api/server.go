@@ -36,6 +36,7 @@ func (s *Server) Handler() http.Handler {
 
 	s.registerKeysRoutes(r)
 	s.registerLeasesRoutes(r)
+	s.registerAuditRoutes(r)
 
 	return r
 }

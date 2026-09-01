@@ -72,6 +72,19 @@ func InitDB(dbPath string) (*DB, error) {
 		token_hash TEXT NOT NULL,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE TABLE IF NOT EXISTS audit_logs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT NOT NULL,
+		target_host TEXT NOT NULL,
+		action TEXT NOT NULL,
+		reason TEXT,
+		client_ip TEXT NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_username ON audit_logs (username);
 	`
 	if _, err := conn.Exec(schema); err != nil {
 		return nil, fmt.Errorf("cannot create tables: %w", err)

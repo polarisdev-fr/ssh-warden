@@ -33,6 +33,7 @@ func main() {
 		newRevokeCmd(),
 		newKeyCmd(),
 		newConfigCmd(),
+		newAuditCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

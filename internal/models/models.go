@@ -52,3 +52,16 @@ type Host struct {
 	TokenHash string    `json:"token_hash"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+// AuditLog records a single authorization decision made by the API, most
+// notably when an OpenSSH host's helper asks for a user's authorized keys.
+// Action describes the outcome and Reason provides human-readable detail.
+type AuditLog struct {
+	ID         int64     `json:"id"`
+	Username   string    `json:"username"`
+	TargetHost string    `json:"target_host"`
+	Action     string    `json:"action"`
+	Reason     string    `json:"reason"`
+	ClientIP   string    `json:"client_ip"`
+	CreatedAt  time.Time `json:"created_at"`
+}

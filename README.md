@@ -131,6 +131,35 @@ warden status -u alice
 warden revoke 42
 ```
 
+### Audit log
+
+Every time an OpenSSH host's helper asks the API to authorize a connection,
+the API records a persistent audit event in SQLite — timestamp, client IP,
+target host, user, and whether the key request was granted, denied, or the
+machine failed authentication.
+
+```sh
+# Show the 20 most recent events
+warden audit
+
+# Filter by user, target host, or cap the number of lines
+warden audit -u alice
+warden audit -t srv-prod-01
+warden audit -n 200
+```
+
+Example output:
+
+```
+DATE                  IP            HÔTE          UTILISATEUR   RÉSULTAT      DÉTAILS
+01:31:39 02/09/2026   203.0.113.7   srv-prod-01   alice         ALLOWED       Active lease found
+01:30:02 02/09/2026   203.0.113.7   srv-prod-01   bob           DENIED        No active lease or no keys
+01:29:55 02/09/2026   198.51.100.2  srv-prod-01   alice         AUTH FAILED   invalid host token
+```
+
+The audit trail is stored in the `audit_logs` table, so it survives server
+restarts and is queryable alongside the other data.
+
 ### Configuration
 
 To avoid passing `--api` and `-u` every time, store local defaults in

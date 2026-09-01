@@ -46,9 +46,12 @@ func (s *Server) handleGetUserKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(keys) == 0 {
+		logAudit(s.db, r, username, targetHost, actionKeyDenied, "No active lease or no keys")
 		http.Error(w, "no active keys found or lease expired", http.StatusNotFound)
 		return
 	}
+
+	logAudit(s.db, r, username, targetHost, actionKeyGranted, "Active lease found")
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
