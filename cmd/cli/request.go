@@ -29,20 +29,28 @@ func newRequestCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&requestDuration, "duration", "d", "1h", "Lease duration (e.g. 30m, 2h)")
 	cmd.Flags().StringVarP(&requestReason, "reason", "r", "", "Reason for the request")
 
-	cmd.MarkFlagRequired("user")
 	return cmd
 }
 
 // runRequest requests a new lease from the API and prints a confirmation.
 func runRequest(cmd *cobra.Command, args []string) error {
+	user, err := resolveUsername(requestUser)
+	if err != nil {
+		return err
+	}
+
 	payload := map[string]string{
-		"username":    requestUser,
+		"username":    user,
 		"target_host": requestTarget,
 		"duration":    requestDuration,
 		"reason":      requestReason,
 	}
 
-	body, status, err := newClient().post("/api/v1/leases", payload)
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	body, status, err := client.post("/api/v1/leases", payload)
 	if err != nil {
 		return err
 	}

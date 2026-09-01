@@ -22,14 +22,19 @@ type wardenClient struct {
 // clientTimeout bounds how long a single API call may take.
 const clientTimeout = 10 * time.Second
 
-// newClient returns a wardenClient pointed at the global apiURL base.
-func newClient() *wardenClient {
+// newClient returns a wardenClient pointed at the resolved API base URL,
+// following the priority: --api flag > WARDEN_API_URL > config file > default.
+func newClient() (*wardenClient, error) {
+	base, err := resolveAPIURL()
+	if err != nil {
+		return nil, err
+	}
 	return &wardenClient{
-		base: apiURL,
+		base: base,
 		client: &http.Client{
 			Timeout: clientTimeout,
 		},
-	}
+	}, nil
 }
 
 // url joins the base URL with one or more path segments.

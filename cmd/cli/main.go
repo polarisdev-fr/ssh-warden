@@ -23,14 +23,16 @@ func main() {
 		Short: "Manage temporary SSH access",
 	}
 
-	// Global persistent flag pointing at the Warden API.
-	rootCmd.PersistentFlags().StringVar(&apiURL, "api", "http://localhost:8080", "Warden API URL")
+	// Global persistent flag pointing at the Warden API. Leaving it empty
+	// lets the config file or WARDEN_API_URL provide the value.
+	rootCmd.PersistentFlags().StringVar(&apiURL, "api", "", "Warden API URL (overrides config)")
 
 	rootCmd.AddCommand(
 		newRequestCmd(),
 		newStatusCmd(),
 		newRevokeCmd(),
 		newKeyCmd(),
+		newConfigCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

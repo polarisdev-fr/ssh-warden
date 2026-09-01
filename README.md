@@ -131,6 +131,29 @@ warden status -u alice
 warden revoke 42
 ```
 
+### Configuration
+
+To avoid passing `--api` and `-u` every time, store local defaults in
+`~/.config/ssh-warden/config.yaml` (or `%APPDATA%\ssh-warden\config.yaml`
+on Windows):
+
+```sh
+# Show the active config file and current values
+warden config show
+
+# Set the API endpoint and default user
+warden config set api_url http://192.168.1.50:8080
+warden config set default_user alice
+
+# With default_user configured, -u becomes optional:
+warden request -t srv-prod-01 -d 30m -r "No -u needed"
+```
+
+The effective `api_url` is resolved by priority: `--api` flag,
+`WARDEN_API_URL`, then the config file, then `http://localhost:8080`. The
+effective username is resolved from `-u/--user`, then the config
+`default_user`, then the OS user.
+
 ## Roadmap
 
 - **mTLS** between hosts and the Warden API for mutual authentication.

@@ -26,7 +26,11 @@ func runRevoke(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid lease id: %q", args[0])
 	}
 
-	body, status, err := newClient().delete(fmt.Sprintf("/api/v1/leases/%d", leaseID))
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	body, status, err := client.delete(fmt.Sprintf("/api/v1/leases/%d", leaseID))
 	if err != nil {
 		return err
 	}

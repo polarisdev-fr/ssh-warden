@@ -34,7 +34,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		params.Set("user", statusUser)
 	}
 
-	body, status, err := newClient().get("/api/v1/leases", params)
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	body, status, err := client.get("/api/v1/leases", params)
 	if err != nil {
 		return err
 	}

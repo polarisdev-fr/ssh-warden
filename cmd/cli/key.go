@@ -31,7 +31,6 @@ func newKeyCmd() *cobra.Command {
 
 	addCmd.Flags().StringVarP(&addKeyUser, "user", "u", "", "Username to associate with the key (required)")
 	addCmd.Flags().StringVarP(&addKeyComment, "comment", "c", "", "Custom label/comment for the key")
-	addCmd.MarkFlagRequired("user")
 
 	keyCmd.AddCommand(addCmd)
 	return keyCmd
@@ -40,6 +39,11 @@ func newKeyCmd() *cobra.Command {
 // runKeyAdd reads a local public key file, POSTs it to the API and prints a
 // confirmation.
 func runKeyAdd(cmd *cobra.Command, args []string) error {
+	user, err := resolveUsername(addKeyUser)
+	if err != nil {
+		return err
+	}
+
 	keyFile := args[0]
 
 	data, err := os.ReadFile(keyFile)
@@ -48,12 +52,16 @@ func runKeyAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	payload := map[string]string{
-		"username":   addKeyUser,
+		"username":   user,
 		"public_key": string(data),
 		"comment":    addKeyComment,
 	}
 
-	body, status, err := newClient().post("/api/v1/keys", payload)
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	body, status, err := client.post("/api/v1/keys", payload)
 	if err != nil {
 		return err
 	}
@@ -73,7 +81,7 @@ func runKeyAdd(cmd *cobra.Command, args []string) error {
 	if created.Comment == "" {
 		created.Comment = "no comment"
 	}
-	fmt.Printf("✓ Public key successfully registered for user %s\n", addKeyUser)
+	fmt.Printf("✓ Public key successfully registered for user %s\n", user)
 	fmt.Printf("  Key ID     : %d\n", created.ID)
 	fmt.Printf("  Key        : %s\n", created.PublicKey)
 	fmt.Printf("  Comment    : %s\n", created.Comment)
