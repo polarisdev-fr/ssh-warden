@@ -8,29 +8,49 @@ Install the server on a Linux host with a single command:
 curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo bash
 ```
 
-This downloads the latest release, creates a `ssh-warden` system user, installs
-the binary to `/usr/local/bin`, and starts a systemd service. Customize via
-environment variables:
+This installs **both binaries** — the server (`ssh-warden-server`) and the
+OpenSSH helper (`ssh-warden-helper`) — creates a `ssh-warden` system user,
+installs them to `/usr/local/bin`, and starts a systemd service for the API.
+
+Provide a host token so the helper can authenticate against the server; without
+it the helper fails until one is written to `/etc/ssh-warden/token`:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo WARDEN_HOST_TOKEN=my-secret-token bash
+```
+
+Customize via environment variables:
 
 ```sh
 # Install a specific version
-curl -sSL ... | sudo WARDEN_VERSION=v0.2.0 bash
+curl -sSL ... | sudo WARDEN_VERSION=v0.2.0 WARDEN_HOST_TOKEN=my-token bash
 
 # Install from source (requires Go)
 curl -sSL ... | sudo WARDEN_FROM_SOURCE=1 bash
 
-# Custom port and data directory
-curl -sSL ... | sudo WARDEN_PORT=9090 WARDEN_DATA_DIR=/opt/ssh-warden bash
+# Custom port, data directory, and helper API endpoint
+curl -sSL ... | sudo WARDEN_PORT=9090 WARDEN_DATA_DIR=/opt/ssh-warden WARDEN_API_URL=http://192.168.1.50:9090 bash
+
+# Automatically append the sshd_config lines for AuthorizedKeysCommand
+curl -sSL ... | sudo WARDEN_HOST_TOKEN=my-token WARDEN_WRITE_SSHD=1 bash
 ```
 
-**Update** to the latest version (keeps your data and settings):
+**Update** to the latest version (upgrades server + helper, keeps your data,
+token, and settings):
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo bash -s -- update
 ```
 
-**Uninstall** (removes the service, binary, and data directory — keep the data
-by passing `KEEP_DATA=1`):
+**Install/update only the helper** (for adding more SSH hosts without touching
+the server):
+
+```sh
+curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo WARDEN_HOST_TOKEN=my-token bash -s -- install-helper
+```
+
+**Uninstall** (removes the service, both binaries, token, and data directory —
+keep the data by passing `KEEP_DATA=1`):
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo bash -s -- uninstall
