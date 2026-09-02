@@ -152,6 +152,67 @@ ls -l /var/lib/ssh-warden/warden.db
 
 ---
 
+## 1.C — Updating the server
+
+### From source (systemd)
+
+```sh
+# 1. Pull the latest code
+cd ~/ssh-warden
+git pull origin main
+
+# 2. Rebuild the binary
+CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/ssh-warden-server ./cmd/server
+
+# 3. Restart the service (the database is untouched)
+systemctl restart ssh-warden.service
+
+# 4. Verify
+systemctl status ssh-warden.service
+curl -s http://localhost:8080/health
+```
+
+The SQLite database (`warden.db`) is persistent and backward-compatible: new
+releases may add columns via automatic migrations — no manual schema changes
+are needed.
+
+### From Docker
+
+```sh
+# 1. Pull the latest code
+cd ~/ssh-warden
+git pull origin main
+
+# 2. Rebuild the image
+docker compose build warden
+
+# 3. Recreate the container (data volume is preserved)
+docker compose up -d warden
+
+# 4. Verify
+docker compose logs --tail=20 warden
+curl -s http://localhost:8080/health
+```
+
+### Rollback
+
+If the new version misbehaves, revert to the previous binary and restart:
+
+```sh
+# systemd
+git checkout <previous-tag>
+CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/ssh-warden-server ./cmd/server
+systemctl restart ssh-warden.service
+
+# Docker
+git checkout <previous-tag>
+docker compose build warden && docker compose up -d warden
+```
+
+The database format is forward-compatible so rolling back the binary is safe.
+
+---
+
 ## 2. Configuring target hosts (OpenSSH)
 
 Each target host gets the helper binary, an OpenSSH snippet, and a host token.
@@ -214,9 +275,8 @@ or edit `sshd_config` directly.
 AuthorizedKeysCommand /usr/local/bin/ssh-warden-helper %u
 AuthorizedKeysCommandUser nobody
 
-# This command makes the key listing remote; a static fallback is
-# recommended for emergencies (see "Testing safely" below).
-AuthorizedKeysCommandKey types=ssh-ed25519,ecdsa-sha2-nistp256,rsa-sha2-512
+# Optional: restrict accepted key types to strong algorithms.
+PubkeyAcceptedAlgorithms ssh-ed25519,ecdsa-sha2-nistp256,rsa-sha2-512
 ```
 
 OpenSSH invokes the command with the connecting username as `%u`. The helper
