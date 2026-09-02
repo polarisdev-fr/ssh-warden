@@ -1,0 +1,138 @@
+version: 2
+
+project_name: ssh-warden
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ssh-warden-server
+    main: ./cmd/server
+    binary: ssh-warden-server
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
+
+  - id: warden
+    main: ./cmd/cli
+    binary: warden
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
+
+  - id: ssh-warden-helper
+    main: ./cmd/helper
+    binary: ssh-warden-helper
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
+
+archives:
+  - id: ssh-warden-server
+    ids:
+      - ssh-warden-server
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}-{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - docs/*
+      - LICENSE*
+
+  - id: warden
+    ids:
+      - warden
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}-{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - docs/*
+      - LICENSE*
+
+  - id: ssh-warden-helper
+    ids:
+      - ssh-warden-helper
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}-{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - docs/*
+      - LICENSE*
+
+checksum:
+  name_template: sha256sums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^perf:"
+      - merge conflict
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^.*(fix|bugfix)[(\\w)]*:+.*$"
+      order: 1
+    - title: Documentation
+      regexp: "^.*(doc|docs)[(\\w)]*:+.*$"
+      order: 2
+    - title: Refactoring
+      regexp: "^.*(ref|refactor)[(\\w)]*:+.*$"
+      order: 3
+    - title: Other Changes
+      order: 999

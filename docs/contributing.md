@@ -180,7 +180,28 @@ in the same package.
 
 ---
 
-## 7. Reporting issues
+## 7. Creating a release
+
+Releases are built automatically by GoReleaser (`.goreleaser.yaml`) through the
+`.github/workflows/release.yml` workflow, which triggers on version tags
+(`v*.*.*`). For each tag it produces cross-platform binaries
+(server, `warden` CLI, and the Linux/macOS helper) plus `sha256sums.txt`
+checksums attached to the GitHub Release.
+
+Ensure the validation gates in §5 pass, then create and push a semver tag:
+
+```sh
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+Push a new tag only once you intend to release; the workflow runs once per tag
+and attaches assets to the Release for that tag. Release notes are generated
+automatically from Conventional Commit history (see §3.2).
+
+---
+
+## 8. Reporting issues
 
 Open a GitHub issue and include: expected vs actual behavior, the exact command
 you ran, the Go version and OS, and the relevant portion of the audit log or
