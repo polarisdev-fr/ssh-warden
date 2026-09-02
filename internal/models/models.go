@@ -80,3 +80,13 @@ type AuditLog struct {
 	ClientIP   string    `json:"client_ip"`
 	CreatedAt  time.Time `json:"created_at"`
 }
+
+// SystemInfo is a read-only snapshot exposed by GET /api/v1/system for the Web
+// UI's System view. It reports operational details about the running server.
+type SystemInfo struct {
+	Version     string `json:"version"`
+	AuthMode    string `json:"auth_mode"`
+	AuthEnabled bool   `json:"auth_enabled"`
+	MTLSEnabled bool   `json:"mtls_enabled"`
+	DBPath      string `json:"db_path"`
+}

@@ -11,32 +11,67 @@
     --green: #3fb950; --yellow: #d29922; --red: #f85149; --blue: #58a6ff; --gray: #6e7681;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
   html { -webkit-text-size-adjust:100%; }
-  body { background:var(--bg); color:var(--fg); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; line-height:1.5; padding:16px 20px 56px; }
+  body { background:var(--bg); color:var(--fg); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; line-height:1.5; display:flex; overflow:hidden; }
 
-  /* Header */
-  .header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border); }
-  .brand { display:flex; align-items:center; gap:10px; font-size:20px; font-weight:600; }
-  .brand .logo { color:var(--blue); }
-  .header-actions { display:flex; align-items:center; gap:10px; }
-  .user-bar { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--dim); }
-  .user-bar .username { color:var(--fg); font-weight:600; }
-  .user-bar .logout { color:var(--red); text-decoration:none; font-weight:600; }
-  .user-bar .logout:hover { text-decoration:underline; }
-  .refresh-btn { background:var(--surface); color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s; }
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width:240px; flex-shrink:0; height:100vh; position:fixed; left:0; top:0; z-index:40;
+    background:#0d1117; border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:16px 12px; gap:4px;
+    transition:transform .25s ease;
+  }
+  .side-head { display:flex; align-items:center; gap:10px; padding:4px 8px 14px; border-bottom:1px solid var(--border); margin-bottom:10px; }
+  .side-logo { width:34px; height:34px; border-radius:8px; background:var(--blue); color:#000; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .side-logo svg { width:20px; height:20px; }
+  .side-title { font-size:15px; font-weight:700; line-height:1.2; }
+  .side-sub { font-size:11px; color:var(--dim); display:flex; align-items:center; gap:6px; margin-top:2px; }
+  .version-badge { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:0 6px; font-size:10px; color:var(--dim); }
+  .online { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
+  .online.off { background:var(--red); box-shadow:0 0 6px var(--red); }
+
+  .nav { display:flex; flex-direction:column; gap:2px; }
+  .nav a {
+    display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px;
+    color:var(--dim); text-decoration:none; font-size:13.5px; font-weight:600; cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .nav a svg { width:17px; height:17px; flex-shrink:0; }
+  .nav a:hover { background:#161b22; color:var(--fg); }
+  .nav a.active { background:rgba(56,139,253,.14); color:var(--blue); }
+  .nav .nav-label { flex:1; }
+  .nav .count-badge { background:var(--red); color:#fff; border-radius:10px; min-width:20px; padding:1px 6px; font-size:11px; font-weight:700; text-align:center; display:none; }
+  .nav .count-badge.show { display:inline-block; }
+
+  .side-foot { margin-top:auto; padding:10px 8px 0; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+  .foot-user { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--dim); }
+  .foot-user .avatar { width:26px; height:26px; border-radius:50%; background:var(--blue); color:#000; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+  .foot-user .uname { color:var(--fg); font-weight:600; }
+  .foot-user .logout { color:var(--red); text-decoration:none; font-weight:600; font-size:12px; }
+  .foot-user .logout:hover { text-decoration:underline; }
+  .refresh-btn { background:var(--surface); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:12.5px; font-weight:600; cursor:pointer; transition:background .15s; display:flex; align-items:center; gap:7px; justify-content:center; }
   .refresh-btn:hover { background:#21262d; }
-  .refresh-btn:disabled, .refresh-btn.spinning { opacity:.6; cursor:default; }
+  .refresh-btn:disabled { opacity:.6; cursor:default; }
+
+  /* ---------- Main ---------- */
+  .main { margin-left:240px; flex:1; height:100vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:20px 24px 48px; }
+
+  .mob-top { display:none; }
+  .burger { background:transparent; border:1px solid var(--border); color:var(--fg); border-radius:8px; padding:7px 10px; font-size:16px; cursor:pointer; }
+  .view { display:none; }
+  .view.active { display:block; }
+  .view-title { font-size:17px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:10px; }
+  .view-title .updated-at { margin-left:auto; font-size:12px; font-weight:400; color:var(--dim); }
 
   /* Warning banner */
   .banner { display:none; background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); color:var(--yellow); padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:16px; }
   .banner.show { display:block; }
 
-  h2 { font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--dim); margin:26px 0 10px; display:flex; align-items:center; gap:8px; }
-  h2 .toggle { cursor:pointer; color:var(--blue); font-size:12px; text-transform:none; margin-left:auto; }
+  h2 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--dim); margin:22px 0 8px; }
 
   /* Table wrapper for horizontal scroll on small screens */
-  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
-
+  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; }
   table { width:100%; border-collapse:collapse; min-width:640px; }
   th { text-align:left; padding:10px 14px; font-size:11px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid var(--border); white-space:nowrap; }
   td { padding:10px 14px; font-size:13px; border-bottom:1px solid var(--border); white-space:nowrap; }
@@ -59,53 +94,114 @@
   .btn-revoke { background:var(--red); color:#fff; }
   .btn-revoke:hover { background:#da3633; }
   .btn:disabled { opacity:.4; cursor:default; }
-
-  .empty { color:var(--dim); font-size:13px; padding:16px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
   .row { display:flex; gap:6px; flex-wrap:wrap; }
 
-  /* Collapsible audit section */
-  .audit-collapsed .table-wrap { display:none; }
-  .audit-collapsed h2 .toggle { color:var(--dim); }
+  .empty { color:var(--dim); font-size:13px; padding:16px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
 
-  .toast { position:fixed; bottom:24px; right:24px; left:24px; max-width:360px; margin:0 auto; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:500; opacity:0; transition:opacity .3s; pointer-events:none; text-align:center; }
+  /* System view cards */
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .card .k { font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--dim); margin-bottom:6px; }
+  .card .v { font-size:15px; font-weight:600; word-break:break-all; }
+  .card .v.enabled { color:var(--green); }
+  .card .v.disabled { color:var(--red); }
+  .pills { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+
+  .toast { position:fixed; bottom:24px; right:24px; left:24px; max-width:360px; margin:0 auto; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:500; opacity:0; transition:opacity .3s; pointer-events:none; text-align:center; z-index:60; }
   .toast.show { opacity:1; }
   .toast-ok { background:var(--green); color:#000; }
   .toast-err { background:var(--red); color:#fff; }
 
-  @media (max-width:600px) {
-    body { padding:12px 10px 56px; }
-    .brand { font-size:17px; }
+  /* Mobile drawer overlay */
+  .overlay { display:none; position:fixed; inset:0; background:rgba(1,4,9,.6); z-index:30; }
+
+  @media (max-width:768px) {
+    .sidebar { transform:translateX(-100%); }
+    .sidebar.open { transform:translateX(0); box-shadow:0 0 30px rgba(0,0,0,.5); }
+    .overlay.show { display:block; }
+    .main { margin-left:0; padding:14px 12px 48px; }
+    .mob-top { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
     th, td { padding:8px 10px; font-size:12px; }
+    td.reason { max-width:180px; }
   }
 </style>
 </head>
 <body>
 
-<div id="warning-banner" class="banner">⚠ UI is running without authentication. Set WARDEN_UI_USER &amp; WARDEN_UI_PASSWORD or enable OIDC (WARDEN_OIDC_ENABLED=true) to secure it.</div>
+<div id="overlay" class="overlay" onclick="closeDrawer()"></div>
 
-<div class="header">
-  <div class="brand"><span class="logo">&#9776;</span> <span>SSH-Warden</span>&nbsp;Dashboard</div>
-  <div class="header-actions">
-    <span class="user-bar">__USER_BAR__</span>
-    <span id="updated-at" class="muted" style="color:var(--dim);font-size:12px;"></span>
-    <button id="refresh-btn" class="refresh-btn" onclick="manualRefresh()">&#10227; Refresh</button>
+<!-- Sidebar -->
+<aside id="sidebar" class="sidebar">
+  <div class="side-head">
+    <div class="side-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+    </div>
+    <div>
+      <div class="side-title">SSH-Warden</div>
+      <div class="side-sub"><span id="online-dot" class="online"></span><span id="version-badge" class="version-badge">v…</span></div>
+    </div>
   </div>
+
+  <nav class="nav">
+    <a id="nav-leases" class="active" onclick="switchView('leases')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span class="nav-label">Leases</span><span id="pending-count" class="count-badge">0</span>
+    </a>
+    <a id="nav-audit" onclick="switchView('audit')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      <span class="nav-label">Audit Logs</span>
+    </a>
+    <a id="nav-system" onclick="switchView('system')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="nav-label">System &amp; Info</span>
+    </a>
+  </nav>
+
+  <div class="side-foot">
+    <div id="foot-user" class="foot-user">__USER_BAR__</div>
+    <button id="refresh-btn" class="refresh-btn" onclick="manualRefresh()">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      Refresh
+    </button>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <div class="mob-top">
+    <button class="burger" onclick="openDrawer()" aria-label="Menu">&#9776;</button>
+    <strong>SSH-Warden</strong>
+  </div>
+
+  <div id="warning-banner" class="banner">⚠ UI is running without authentication. Set WARDEN_UI_USER &amp; WARDEN_UI_PASSWORD or enable OIDC (WARDEN_OIDC_ENABLED=true) to secure it.</div>
+
+  <!-- Leases view -->
+  <section id="view-leases" class="view active">
+    <div class="view-title">Leases <span class="updated-at" id="updated-at"></span></div>
+    <h2>Pending Approvals</h2>
+    <div id="pending-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
+    <h2>Active Leases</h2>
+    <div id="leases-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
+  </section>
+
+  <!-- Audit view -->
+  <section id="view-audit" class="view">
+    <div class="view-title">Audit Logs <span class="updated-at" id="updated-at-audit"></span></div>
+    <div id="audit-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
+  </section>
+
+  <!-- System view -->
+  <section id="view-system" class="view">
+    <div class="view-title">System &amp; Info</div>
+    <div class="cards">
+      <div class="card"><div class="k">Server version</div><div class="v" id="sys-version">…</div></div>
+      <div class="card"><div class="k">Authentication</div><div class="v" id="sys-auth">…</div></div>
+      <div class="card"><div class="k">mTLS</div><div class="v" id="sys-mtls">…</div></div>
+      <div class="card"><div class="k">Database</div><div class="v" id="sys-db">…</div></div>
+      <div class="card" style="grid-column:1/-1"><div class="k">Auth modes</div><div class="pills" id="sys-modes"></div></div>
+    </div>
+  </section>
 </div>
-
-<section id="pending-section">
-  <h2>Pending Approvals <span class="toggle" onclick="toggleSection('pending-section')">hide</span></h2>
-  <div id="pending-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
-</section>
-
-<section id="leases-section">
-  <h2>Active Leases <span class="toggle" onclick="toggleSection('leases-section')">hide</span></h2>
-  <div id="leases-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
-</section>
-
-<section id="audit-section">
-  <h2>Recent Access Logs <span class="toggle" onclick="toggleSection('audit-section')">hide</span></h2>
-  <div id="audit-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
-</section>
 
 <div id="toast" class="toast"></div>
 
@@ -156,12 +252,19 @@ function expiryBadge(expiresAt) {
 function renderPending(leases) {
   leases = arr(leases);
   const wrap = document.getElementById('pending-wrap');
-  if (!leases.length) { wrap.innerHTML = '<p class="empty">No leases waiting for approval.</p>'; return; }
+  const count = document.getElementById('pending-count');
+  if (!leases.length) {
+    wrap.innerHTML = '<p class="empty">No leases waiting for approval.</p>';
+    count.classList.remove('show');
+    return;
+  }
+  count.textContent = leases.length;
+  count.classList.add('show');
   let html = '<table><tr><th>ID</th><th>User</th><th>Target</th><th>Reason</th><th>Created</th><th>Actions</th></tr>';
   for (const l of leases) {
     const created = new Date(l.created_at).toLocaleString();
     html += '<tr><td>#' + l.id + '</td><td>' + esc(l.username) + '</td><td>' + esc(l.target_host) + '</td>'
-      + '<td class="reason">' + esc(l.reason || '<span class="muted">—</span>') + '</td><td>' + created + '</td>'
+      + '<td class="reason">' + (l.reason ? esc(l.reason) : '<span class="muted">—</span>') + '</td><td>' + created + '</td>'
       + '<td><div class="row">'
       + '<button class="btn btn-approve" onclick="approve(' + l.id + ',this)">Approve</button> '
       + '<button class="btn btn-reject" onclick="reject(' + l.id + ',this)">Reject</button>'
@@ -179,7 +282,7 @@ function renderLeases(leases) {
   for (const l of leases) {
     const cls = l.status === 'approved' ? 'badge-green' : 'badge-yellow';
     html += '<tr><td>#' + l.id + '</td><td>' + esc(l.username) + '</td><td>' + esc(l.target_host) + '</td>'
-      + '<td class="reason">' + esc(l.reason || '<span class="muted">—</span>') + '</td>'
+      + '<td class="reason">' + (l.reason ? esc(l.reason) : '<span class="muted">—</span>') + '</td>'
       + '<td>' + expiryBadge(l.expires_at) + '</td>'
       + '<td><span class="badge ' + cls + '">' + esc(l.status) + '</span></td>'
       + '<td><button class="btn btn-revoke" onclick="revoke(' + l.id + ',this)">Revoke</button></td></tr>';
@@ -204,18 +307,38 @@ function renderAudit(logs) {
   for (const e of logs) {
     const time = new Date(e.created_at).toLocaleString();
     html += '<tr><td>' + time + '</td><td>' + esc(e.username) + '</td><td>' + esc(e.target_host) + '</td>'
-      + '<td>' + esc(e.client_ip || '—') + '</td>'
+      + '<td>' + (e.client_ip ? esc(e.client_ip) : '—') + '</td>'
       + '<td><span class="badge ' + auditBadge(e.action) + '">' + esc(e.action) + '</span></td></tr>';
   }
   html += '</table>';
   wrap.innerHTML = html;
 }
 
-function toggleSection(id) {
-  const sec = document.getElementById(id);
-  sec.classList.toggle('audit-collapsed');
-  const t = sec.querySelector('.toggle');
-  t.textContent = sec.classList.contains('audit-collapsed') ? 'show' : 'hide';
+const AUTH_LABELS = { oidc: 'OpenID Connect', basic: 'Basic Auth', none: 'None (open)' };
+
+function renderSystem(info) {
+  const el = (id, txt, enabled) => {
+    const e = document.getElementById(id);
+    e.textContent = txt;
+    if (enabled !== undefined) {
+      e.classList.remove('enabled', 'disabled');
+      e.classList.add(enabled ? 'enabled' : 'disabled');
+    }
+  };
+  el('sys-version', info.version || 'dev');
+  el('sys-auth', (AUTH_LABELS[info.auth_mode] || info.auth_mode) + ' ' + (info.auth_enabled ? '' : '(open)'),
+    info.auth_enabled);
+  el('sys-mtls', info.mtls_enabled ? 'Enabled' : 'Disabled', info.mtls_enabled);
+  el('sys-db', info.db_path || 'in-memory');
+
+  const modes = document.getElementById('sys-modes');
+  modes.innerHTML = '';
+  for (const [mode, url] of [['oidc', '/auth/login'], ['basic', '/ui'], ['none', '/ui']]) {
+    const pill = document.createElement('span');
+    pill.className = 'badge ' + (info.auth_mode === mode ? 'badge-green' : 'badge-gray');
+    pill.textContent = (AUTH_LABELS[mode] || mode) + (info.auth_mode === mode ? ' (active)' : '');
+    modes.appendChild(pill);
+  }
 }
 
 // Confirm then revoke via DELETE /api/v1/leases/{id}
@@ -244,20 +367,50 @@ function reject(id, btn) {
     .catch(e => { toast('Failed: ' + e.message, false); btn.disabled = false; btn.textContent = 'Reject'; });
 }
 
-function load() {
-  api('GET', '/api/v1/leases/pending').then(renderPending).catch(e => { console.warn('pending:', e); renderPending([]); });
-  api('GET', '/api/v1/leases').then(renderLeases).catch(e => { console.warn('leases:', e); renderLeases([]); });
-  api('GET', '/api/v1/audit?limit=10').then(renderAudit).catch(e => { console.warn('audit:', e); renderAudit([]); });
-  const now = document.getElementById('updated-at');
-  if (now) now.textContent = 'Updated ' + new Date().toLocaleTimeString();
-}
-
 // Coerce a possibly-null API payload (JSON null) into an array so the table
 // renderers never trip over a non-array value.
 function arr(x) { return Array.isArray(x) ? x : []; }
 
 // HTML-escape a string to safely inject dynamic values into the table markup.
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+// ---------- View switching ----------
+function switchView(name) {
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  const nav = document.getElementById('nav-' + name);
+  if (nav) nav.classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  closeDrawer();
+  // Always fetch on switch so the shown data is current.
+  refreshFor(name);
+}
+
+function refreshFor(name) {
+  if (name === 'system') loadSystem();
+}
+
+function loadSystem() {
+  api('GET', '/api/v1/system')
+    .then(renderSystem)
+    .catch(e => { console.warn('system:', e); });
+}
+
+function updateTimestamp() {
+  const t = new Date().toLocaleTimeString();
+  const main = document.getElementById('updated-at');
+  const audit = document.getElementById('updated-at-audit');
+  if (main) main.textContent = 'Updated ' + t;
+  if (audit) audit.textContent = 'Updated ' + t;
+}
+
+function load() {
+  api('GET', '/api/v1/leases/pending').then(renderPending).catch(e => { console.warn('pending:', e); renderPending([]); });
+  api('GET', '/api/v1/leases').then(renderLeases).catch(e => { console.warn('leases:', e); renderLeases([]); });
+  api('GET', '/api/v1/audit?limit=20').then(renderAudit).catch(e => { console.warn('audit:', e); renderAudit([]); });
+  loadSystem();
+  updateTimestamp();
+}
 
 function manualRefresh() {
   const btn = document.getElementById('refresh-btn');
@@ -265,6 +418,28 @@ function manualRefresh() {
   load();
   setTimeout(() => { btn.disabled = false; }, 500);
 }
+
+// ---------- Mobile drawer ----------
+function openDrawer() { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); }
+function closeDrawer() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('show'); }
+
+// ---------- Online / footer user ----------
+function setOnline(ok) {
+  const dot = document.getElementById('online-dot');
+  dot.classList.toggle('off', !ok);
+}
+function setVersion(v) {
+  const el = document.getElementById('version-badge');
+  if (v) el.textContent = 'v' + v;
+}
+
+// If no user is authenticated (empty __USER_BAR__), show a local/Admin label.
+(function initFooter() {
+  const box = document.getElementById('foot-user');
+  if (box && box.innerText.trim() === '') {
+    box.innerHTML = '<span class="avatar">A</span><span class="uname">Admin / Local</span>';
+  }
+})();
 
 // Show the warning banner only when the server has no UI auth configured.
 if (UI_AUTH_ENABLED !== true) {

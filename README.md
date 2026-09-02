@@ -111,16 +111,20 @@ The server listens on `:8080` and exposes:
 | POST   | `/api/v1/leases/{id}/approve` | Approve a pending lease        |
 | POST   | `/api/v1/leases/{id}/reject`  | Reject a pending lease         |
 | GET    | `/api/v1/audit`            | Audit log                         |
+| GET    | `/api/v1/system`           | Server info (auth mode, mTLS, DB) |
 | GET    | `/ui`                      | Web UI dashboard                  |
 
 ### Web UI dashboard
 
 When the server is running, open `http://localhost:8080/ui` in a browser to
-access the built-in Web UI. It displays all active leases and pending approval
-requests with **Approve** / **Reject** buttons, lets you **Revoke** an active
-lease, and shows the most recent access logs. The dashboard auto-refreshes
-every 15 seconds and offers a manual **Refresh** button. Expiry badges are
-color-coded (green > 30 min, orange ≤ 30 min, red ≤ 10 min).
+access the built-in Web UI. It has a fixed left sidebar with three views:
+**Leases** (combining pending approvals with Approve/Reject and active leases
+with Revoke), **Audit Logs** (recent access logs), and **System & Info** (auth
+mode, mTLS status, database path). A red badge on the Leases tab shows the
+number of pending approvals. The dashboard auto-refreshes every 15 seconds and
+offers a manual **Refresh** button in the sidebar; expiry badges are
+color-coded (green > 30 min, orange ≤ 30 min, red ≤ 10 min). On mobile the
+sidebar collapses into a hamburger drawer.
 
 ```sh
 # Quick check in the browser

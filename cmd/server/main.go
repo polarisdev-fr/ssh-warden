@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -65,6 +66,14 @@ func run() error {
 		apiServer.WithOIDC(pr)
 		log.Printf("OIDC auth enabled for /ui (issuer %s)", os.Getenv("WARDEN_OIDC_ISSUER_URL"))
 	}
+
+	var dbPath string
+	if p, err := filepath.Abs("warden.db"); err == nil {
+		dbPath = p
+	} else {
+		dbPath = "warden.db"
+	}
+	apiServer.WithSystemInfo(dbPath, tlsCACertFile != "")
 
 	srv := &http.Server{
 		Addr:    defaultAddr,

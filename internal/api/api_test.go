@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/polarisdev-fr/ssh-warden/internal/database"
+	"github.com/polarisdev-fr/ssh-warden/internal/models"
 	"github.com/polarisdev-fr/ssh-warden/internal/webhook"
 	"golang.org/x/crypto/ssh"
 )
@@ -92,6 +93,39 @@ func TestHealth(t *testing.T) {
 	}
 	if rec.Body.String() != "OK" {
 		t.Errorf("expected body OK, got %q", rec.Body.String())
+	}
+}
+
+func TestSystemInfo(t *testing.T) {
+	srv, _ := newTestServer(t)
+	srv.WithSystemInfo("/var/lib/warden.db", true)
+	handler := srv.Handler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var info models.SystemInfo
+	if err := json.Unmarshal(rec.Body.Bytes(), &info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if info.AuthMode != authModeOpen {
+		t.Errorf("expected auth_mode none, got %q", info.AuthMode)
+	}
+	if info.AuthEnabled {
+		t.Error("expected AuthEnabled=false for open server")
+	}
+	if !info.MTLSEnabled {
+		t.Error("expected MTLSEnabled=true from WithSystemInfo")
+	}
+	if info.DBPath != "/var/lib/warden.db" {
+		t.Errorf("expected db_path=%q, got %q", "/var/lib/warden.db", info.DBPath)
+	}
+	if info.Version == "" {
+		t.Error("expected a non-empty version")
 	}
 }
 

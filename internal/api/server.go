@@ -26,6 +26,19 @@ type Server struct {
 	// oidcProvider, when non-nil, enables OpenID Connect authentication and
 	// takes precedence over Basic Auth.
 	oidcProvider *oidc.Provider
+	// dbPath is the filesystem path of the underlying database, exposed via
+	// /api/v1/system. When empty the in-memory SQLite is in use.
+	dbPath string
+	// mtlsEnabled reports whether the server is serving with mTLS configured.
+	mtlsEnabled bool
+}
+
+// WithSystemInfo records deployment details used by the /api/v1/system
+// endpoint (UI System view). These are informational only.
+func (s *Server) WithSystemInfo(dbPath string, mtlsEnabled bool) *Server {
+	s.dbPath = dbPath
+	s.mtlsEnabled = mtlsEnabled
+	return s
 }
 
 // NewServer creates an API Server backed by the given database and notifier.
@@ -72,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerKeysRoutes(r)
 	s.registerLeasesRoutes(r)
 	s.registerAuditRoutes(r)
+	r.Get("/api/v1/system", systemHandler{s: s}.ServeHTTP)
 	s.registerUIRoutes(r)
 
 	return r
