@@ -100,7 +100,10 @@ else
     if [[ -z "$SERVER_BIN" ]]; then
         die "Could not find ssh-warden-server in the release archive."
     fi
-    mv "$SERVER_BIN" "${TMPDIR}/ssh-warden-server"
+    # Only move if source and target differ (same file = already correct).
+    if [[ "$SERVER_BIN" != "${TMPDIR}/ssh-warden-server" ]]; then
+        mv "$SERVER_BIN" "${TMPDIR}/ssh-warden-server"
+    fi
 fi
 
 # --- Install binary ----------------------------------------------------
