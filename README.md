@@ -7,7 +7,7 @@
 Grant time-boxed SSH access that is automatically enforced by OpenSSH itself —
 no background daemons, no shell wrappers, no lingering credentials.
 
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![CI](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/ci.yml/badge.svg)](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
