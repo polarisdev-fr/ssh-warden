@@ -42,6 +42,7 @@ Usage:
 
 Flags:
   -d, --duration string   Lease duration (e.g. 30m, 2h) (default "1h")
+  -i, --interactive       Run the interactive wizard to fill the request
   -r, --reason string     Reason for the request
   -t, --target string     Target host (e.g. srv-prod-01 or *) (default "*")
   -u, --user string       Username (required)
@@ -51,10 +52,35 @@ Flags:
 
 | Flag      | Default | Purpose |
 |-----------|---------|---------|
-| `-u, --user` | *resolved* | Username. If omitted, the CLI uses `config.yaml` `default_user`, then the OS user. Required if none of those resolve. |
+| `-u, --user` | *resolved* | Username. If omitted, the CLI uses `config.yaml` `default_user`, then the OS user. Omission also activates the interactive wizard. Required if none of those resolve. |
 | `-t, --target` | `*` | Target host. `*` covers every host. |
 | `-d, --duration` | `1h` | Lease duration — any Go duration (`30m`, `2h`, `90s`). |
 | `-r, --reason` | *(empty)* | Human-readable reason, stored and shown in the audit log. |
+| `-i, --interactive` | `false` | Force the interactive wizard, even when flags are provided. |
+
+### Interactive mode
+
+Running `warden request` without a `-u`/`--user` flag (or with `-i`) launches a
+step-by-step terminal wizard built with [Bubble Tea](https://github.com/charmbracelet/bubbletea):
+
+1. **Username** — pre-filled from `config.yaml` `default_user`.
+2. **Target host** — text field, defaults to `*`.
+3. **Duration** — quick pick from `15m`, `30m`, `1h`, `2h`, `4h`, `8h`, or `Custom...` free text.
+4. **Reason** — free text.
+
+Navigation: `Tab`/`Enter` advance to the next step, `⇧Tab` goes back, arrow
+keys move the cursor or change the duration selection, and `Esc`/`Ctrl+C`
+cancels without creating a lease. On completion the request is submitted to the
+API and the result is shown exactly as in the command-line mode.
+
+```sh
+# Interactive wizard — also the default when -u is omitted
+warden request
+warden request -i
+
+# Fully automated, no terminal required (scripts / CI)
+warden request -u alice -t srv-prod-01 -d 30m -r "Debug production issue"
+```
 
 ### Examples
 

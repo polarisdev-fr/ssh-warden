@@ -143,6 +143,24 @@ warden status -u alice
 warden revoke 42
 ```
 
+Running `warden request` with no arguments opens an interactive wizard to fill
+the username, target host, duration and reason step by step. It pre-fills the
+username from `default_user` in your local config. Force it explicitly with the
+`-i`/`--interactive` flag:
+
+```sh
+# Interactive wizard (also the default when -u is omitted)
+warden request
+warden request -i
+
+# Fully automated: keeps working without a terminal (scripts / CI)
+warden request -u alice -t srv-prod-01 -d 30m -r "Debug production issue"
+```
+
+The wizard supports `Tab`/`Enter` to advance, `⇧Tab` to go back, arrow keys to
+pick a duration from the presets (`15m`, `30m`, `1h`, `2h`, `4h`, `8h` or
+custom), and `Esc`/`Ctrl+C` to cancel without creating a lease.
+
 ### Audit log
 
 Every time an OpenSSH host's helper asks the API to authorize a connection,
