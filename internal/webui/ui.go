@@ -51,6 +51,12 @@ func RegisterUIRoutes(r chi.Router, auth UIAuth) {
 // the given credentials. Failed requests receive a 401 response carrying the
 // WWW-Authenticate header so browsers prompt for credentials.
 func basicAuth(user, password string) func(http.Handler) http.Handler {
+	return BasicAuth(user, password)
+}
+
+// BasicAuth exposes basicAuth as an exported middleware factory so the API
+// package can guard the same UI surface (cli-auth page, token endpoint).
+func BasicAuth(user, password string) func(http.Handler) http.Handler {
 	expectedUser := []byte(user)
 	expectedPass := []byte(password)
 
@@ -97,5 +103,11 @@ func serveIndex(w http.ResponseWriter, r *http.Request, auth UIAuth) {
 	body = strings.ReplaceAll(body, "__USER_BAR__", userBar)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The dashboard is a single self-contained HTML document. Never cache it:
+	// an upgraded server must not be masked by a stale browser copy (the
+	// reason an old UI kept appearing after an uninstall/reinstall).
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	w.Write([]byte(body))
 }
