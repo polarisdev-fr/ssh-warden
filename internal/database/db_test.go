@@ -224,6 +224,28 @@ func TestHostValidation(t *testing.T) {
 	}
 }
 
+// TestHostValidationWildcard verifies that a "*" host acts as a fallback for
+// any unregistered hostname carrying the same token.
+func TestHostValidationWildcard(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	const wildToken = "wildcard-secret"
+	if err := db.RegisterHost("*", wildToken); err != nil {
+		t.Fatalf("RegisterHost(*): %v", err)
+	}
+
+	// An arbitrary host with the wildcard token is accepted.
+	if !db.ValidateHostToken("any-random-host", wildToken) {
+		t.Error("wildcard host should accept any hostname with the matching token")
+	}
+
+	// A specific host with a different token is still rejected.
+	if db.ValidateHostToken("any-random-host", "other-token") {
+		t.Error("wildcard host should reject a non-matching token")
+	}
+}
+
 func TestPendingLeaseWorkflow(t *testing.T) {
 	db := mustOpen(t)
 	defer closeDB(t, db)

@@ -36,14 +36,25 @@ func (db *DB) RegisterHost(hostname, rawToken string) error {
 // hostname. The comparison uses constant-time logic to avoid leaking
 // information about the stored digest via timing, and returns false both when
 // the host is unknown and when no token is supplied, without distinguishing
-// between the two.
+// between the two. When hostname itself is not registered, a "*" wildcard
+// host (if present) is used as a fallback so a single shared token can
+// authorize any host.
 func (db *DB) ValidateHostToken(hostname, rawToken string) bool {
-	var storedHash string
-	err := db.conn.QueryRow("SELECT token_hash FROM hosts WHERE hostname = ?", hostname).Scan(&storedHash)
-	if err != nil || rawToken == "" {
+	if rawToken == "" {
 		return false
 	}
 
 	computed := hashToken(rawToken)
+
+	var storedHash string
+	err := db.conn.QueryRow("SELECT token_hash FROM hosts WHERE hostname = ?", hostname).Scan(&storedHash)
+	if err == nil && subtle.ConstantTimeCompare([]byte(computed), []byte(storedHash)) == 1 {
+		return true
+	}
+
+	err = db.conn.QueryRow("SELECT token_hash FROM hosts WHERE hostname = '*'").Scan(&storedHash)
+	if err != nil {
+		return false
+	}
 	return subtle.ConstantTimeCompare([]byte(computed), []byte(storedHash)) == 1
 }
