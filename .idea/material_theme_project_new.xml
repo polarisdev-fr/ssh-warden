@@ -4,7 +4,9 @@
     <option name="metadata">
       <MTProjectMetadataState>
         <option name="applicationFrameMigrated" value="true" />
-        <option name="userId" value="52fdec31:1a05f0b74d9:-7ffd" />
+        <option name="migrated" value="true" />
+        <option name="pristineConfig" value="false" />
+        <option name="userId" value="-4eaef40b:19fd252a8fa:-7ff9" />
       </MTProjectMetadataState>
     </option>
   </component>

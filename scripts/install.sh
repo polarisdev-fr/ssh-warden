@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 #
-# SSH-Warden quick installer
-# Usage: curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | bash
+# SSH-Warden admin script
+#
+# Usage:
+#   curl -sSL .../scripts/install.sh | bash                 # install latest
+#   curl -sSL .../scripts/install.sh | bash -s -- update    # update to latest
+#   curl -sSL .../scripts/install.sh | bash -s -- uninstall # remove everything
+#
+# 1st argument is the action (install|update|uninstall), default install.
 #
 # Options (via environment variables):
-#   WARDEN_VERSION    - Release version to install (default: latest)
+#   WARDEN_VERSION     - Release version to install (default: latest)
 #   WARDEN_INSTALL_DIR - Installation directory (default: /usr/local/bin)
-#   WARDEN_DATA_DIR   - Data directory for the DB (default: /var/lib/ssh-warden)
-#   WARDEN_PORT       - API listen port (default: 8080)
+#   WARDEN_DATA_DIR    - Data directory for the DB (default: /var/lib/ssh-warden)
+#   WARDEN_PORT        - API listen port (default: 8080)
 #   WARDEN_FROM_SOURCE - Set to "1" to build from source instead of downloading a release
 
 set -euo pipefail
@@ -18,6 +24,12 @@ DATA_DIR="${WARDEN_DATA_DIR:-/var/lib/ssh-warden}"
 PORT="${WARDEN_PORT:-8080}"
 VERSION="${WARDEN_VERSION:-}"
 FROM_SOURCE="${WARDEN_FROM_SOURCE:-0}"
+
+# File locations
+BIN="${INSTALL_DIR}/ssh-warden-server"
+SERVICE="/etc/systemd/system/ssh-warden.service"
+
+ACTION="${1:-install}"
 
 # --- Helpers -----------------------------------------------------------
 
@@ -42,6 +54,49 @@ need install
 
 if [[ "$FROM_SOURCE" == "1" ]]; then
     need go
+fi
+
+# --- Uninstall ---------------------------------------------------------
+
+if [[ "$ACTION" == "uninstall" ]]; then
+    info "Uninstalling SSH-Warden..."
+
+    if [[ -f "$SERVICE" ]]; then
+        info "Stopping and disabling systemd service..."
+        systemctl disable --now ssh-warden.service 2>/dev/null || true
+        rm -f "$SERVICE"
+        systemctl daemon-reload
+        ok "Service removed"
+    fi
+
+    if [[ -f "$BIN" ]]; then
+        rm -f "$BIN"
+        ok "Binary removed: $BIN"
+    fi
+
+    if [[ -d "$DATA_DIR" ]]; then
+        if [[ "${KEEP_DATA:-0}" != "1" ]]; then
+            rm -rf "$DATA_DIR"
+            ok "Data directory removed: $DATA_DIR"
+        else
+            ok "Data directory kept (KEEP_DATA=1): $DATA_DIR"
+        fi
+    fi
+
+    if id -u ssh-warden >/dev/null 2>&1; then
+        userdel -r ssh-warden 2>/dev/null || true
+        ok "User 'ssh-warden' removed"
+    fi
+
+    # Remove helper binary if it was installed via this script on the same host.
+    if [[ -f "${INSTALL_DIR}/ssh-warden-helper" ]]; then
+        rm -f "${INSTALL_DIR}/ssh-warden-helper"
+        ok "Helper removed: ${INSTALL_DIR}/ssh-warden-helper"
+    fi
+
+    echo ""
+    ok "SSH-Warden uninstalled."
+    exit 0
 fi
 
 # --- Resolve version ---------------------------------------------------
@@ -104,6 +159,13 @@ else
 fi
 
 # --- Install binary ----------------------------------------------------
+
+# Stop an already-running service before replacing the binary, to avoid a
+# "text file busy" race. systemd will restart it below.
+if [[ -f "$SERVICE" ]] && systemctl is-active --quiet ssh-warden.service 2>/dev/null; then
+    info "Stopping running service for fresh binary..."
+    systemctl stop ssh-warden.service || true
+fi
 
 info "Installing server binary to ${INSTALL_DIR}..."
 install -o root -g root -m 755 "${SERVER_BIN}" "${INSTALL_DIR}/ssh-warden-server"
@@ -171,7 +233,7 @@ fi
 # --- Summary -----------------------------------------------------------
 
 echo ""
-ok "SSH-Warden server ${VERSION} installed successfully!"
+ok "SSH-Warden server ${VERSION} ${ACTION} complete!"
 echo ""
 echo "  Binary    : ${INSTALL_DIR}/ssh-warden-server"
 echo "  Data      : ${DATA_DIR}/warden.db"

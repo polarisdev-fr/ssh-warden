@@ -23,6 +23,19 @@ curl -sSL ... | sudo WARDEN_FROM_SOURCE=1 bash
 curl -sSL ... | sudo WARDEN_PORT=9090 WARDEN_DATA_DIR=/opt/ssh-warden bash
 ```
 
+**Update** to the latest version (keeps your data and settings):
+
+```sh
+curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo bash -s -- update
+```
+
+**Uninstall** (removes the service, binary, and data directory — keep the data
+by passing `KEEP_DATA=1`):
+
+```sh
+curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo bash -s -- uninstall
+```
+
 ---
 
 This guide covers two sides of the deployment:
