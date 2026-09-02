@@ -240,9 +240,9 @@ function reject(id, btn) {
 }
 
 function load() {
-  api('GET', '/api/v1/leases/pending').then(renderPending).catch(() => renderPending([]));
-  api('GET', '/api/v1/leases').then(renderLeases).catch(() => renderLeases([]));
-  api('GET', '/api/v1/audit?limit=10').then(renderAudit).catch(() => renderAudit([]));
+  api('GET', '/api/v1/leases/pending').then(renderPending).catch(e => { console.warn('pending:', e); renderPending([]); });
+  api('GET', '/api/v1/leases').then(renderLeases).catch(e => { console.warn('leases:', e); renderLeases([]); });
+  api('GET', '/api/v1/audit?limit=10').then(renderAudit).catch(e => { console.warn('audit:', e); renderAudit([]); });
   const now = document.getElementById('updated-at');
   if (now) now.textContent = 'Updated ' + new Date().toLocaleTimeString();
 }
@@ -250,6 +250,9 @@ function load() {
 // Coerce a possibly-null API payload (JSON null) into an array so the table
 // renderers never trip over a non-array value.
 function arr(x) { return Array.isArray(x) ? x : []; }
+
+// HTML-escape a string to safely inject dynamic values into the table markup.
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 function manualRefresh() {
   const btn = document.getElementById('refresh-btn');
