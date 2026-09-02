@@ -11,33 +11,35 @@ import (
 	"time"
 )
 
-// tlsTransport returns an *http.Transport configured to trust the CA
-// certificate at the path specified by the WARDEN_TLS_CA_CERT environment
-// variable. When the variable is unset or empty, nil is returned and a
-// default transport should be used.
+// tlsTransport returns an *http.Transport based on http.DefaultTransport. When
+// WARDEN_TLS_CA_CERT is set and valid, the CA certificate is added to the
+// transport's root pool so the helper trusts the Warden API's TLS certificate.
+// A clone is always returned so the default transport is never mutated.
 func tlsTransport() *http.Transport {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+
 	caPath := os.Getenv("WARDEN_TLS_CA_CERT")
 	if caPath == "" {
-		return nil
+		return tr
 	}
 
 	caCert, err := os.ReadFile(caPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: cannot read CA certificate %s: %v\n", caPath, err)
-		return nil
+		return tr
 	}
 
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(caCert) {
 		fmt.Fprintf(os.Stderr, "warning: cannot parse CA certificate from %s\n", caPath)
-		return nil
+		return tr
 	}
 
-	return &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs: pool,
-		},
+	if tr.TLSClientConfig == nil {
+		tr.TLSClientConfig = &tls.Config{}
 	}
+	tr.TLSClientConfig.RootCAs = pool
+	return tr
 }
 
 // fetchKeys queries the Warden API for the user's currently authorized public
@@ -57,7 +59,7 @@ func fetchKeys(apiURL, username, hostID, token string) ([]byte, int, error) {
 	}
 
 	client := &http.Client{
-		Timeout:   3 * time.Second,
+		Timeout:   5 * time.Second,
 		Transport: tlsTransport(),
 	}
 

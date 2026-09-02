@@ -40,7 +40,16 @@ func newRequestCmd() *cobra.Command {
 func runRequest(cmd *cobra.Command, args []string) error {
 	var user, target, duration, reason string
 
-	if requestInteractive || !cmd.Flags().Changed("user") {
+	// Launch the interactive wizard only when --interactive is explicitly
+	// set, or when the command is invoked bare (no flags at all). Any flag
+	// provided on the command line (-u, -t, -d, -r) means the user expects
+	// a direct, non-interactive request.
+	noFlagsChanged := !cmd.Flags().Changed("user") &&
+		!cmd.Flags().Changed("target") &&
+		!cmd.Flags().Changed("duration") &&
+		!cmd.Flags().Changed("reason")
+
+	if requestInteractive || noFlagsChanged {
 		// Interactive wizard: pre-fill the username from local config.
 		cfg, err := loadConfig()
 		if err != nil {
