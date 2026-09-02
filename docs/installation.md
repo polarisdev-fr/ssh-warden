@@ -1,5 +1,30 @@
 # SSH-Warden Installation Guide
 
+## Quick install (one-liner)
+
+Install the server on a Linux host with a single command:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/polarisdev-fr/ssh-warden/main/scripts/install.sh | sudo bash
+```
+
+This downloads the latest release, creates a `ssh-warden` system user, installs
+the binary to `/usr/local/bin`, and starts a systemd service. Customize via
+environment variables:
+
+```sh
+# Install a specific version
+curl -sSL ... | sudo WARDEN_VERSION=v0.2.0 bash
+
+# Install from source (requires Go)
+curl -sSL ... | sudo WARDEN_FROM_SOURCE=1 bash
+
+# Custom port and data directory
+curl -sSL ... | sudo WARDEN_PORT=9090 WARDEN_DATA_DIR=/opt/ssh-warden bash
+```
+
+---
+
 This guide covers two sides of the deployment:
 
 1. **The server** — the `ssh-warden-server` (the Warden API + SQLite). You
