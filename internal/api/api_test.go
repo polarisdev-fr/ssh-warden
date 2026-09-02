@@ -318,6 +318,26 @@ func TestGetPendingLeases(t *testing.T) {
 	}
 }
 
+func TestEmptyListsReturnJSONArrays(t *testing.T) {
+	srv, _ := newTestServer(t)
+	handler := srv.Handler()
+
+	// Each empty-list endpoint must return "[]" (a JSON array), never "null",
+	// so the dashboard's table renderers always receive an array.
+	for _, path := range []string{"/api/v1/leases", "/api/v1/leases/pending", "/api/v1/audit?limit=10"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 for %s, got %d", path, rec.Code)
+		}
+		if body := strings.TrimSpace(rec.Body.String()); body != "[]" {
+			t.Errorf("expected [] for %s, got %q", path, body)
+		}
+	}
+}
+
 func TestApproveLease(t *testing.T) {
 	srv, db := newTestServer(t)
 	handler := srv.Handler()

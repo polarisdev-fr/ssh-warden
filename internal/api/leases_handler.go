@@ -52,6 +52,9 @@ func (s *Server) handleListLeases(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	if leases == nil {
+		leases = []models.LeaseInfo{}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -66,6 +69,9 @@ func (s *Server) handleListPendingLeases(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
+	}
+	if leases == nil {
+		leases = []models.LeaseInfo{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

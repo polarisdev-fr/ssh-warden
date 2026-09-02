@@ -149,6 +149,7 @@ function expiryBadge(expiresAt) {
 }
 
 function renderPending(leases) {
+  leases = arr(leases);
   const wrap = document.getElementById('pending-wrap');
   if (!leases.length) { wrap.innerHTML = '<p class="empty">No leases waiting for approval.</p>'; return; }
   let html = '<table><tr><th>ID</th><th>User</th><th>Target</th><th>Reason</th><th>Created</th><th>Actions</th></tr>';
@@ -166,6 +167,7 @@ function renderPending(leases) {
 }
 
 function renderLeases(leases) {
+  leases = arr(leases);
   const wrap = document.getElementById('leases-wrap');
   if (!leases.length) { wrap.innerHTML = '<p class="empty">No active leases.</p>'; return; }
   let html = '<table><tr><th>ID</th><th>User</th><th>Target</th><th>Reason</th><th>Expires In</th><th>Status</th><th>Actions</th></tr>';
@@ -190,6 +192,7 @@ function auditBadge(action) {
 }
 
 function renderAudit(logs) {
+  logs = arr(logs);
   const wrap = document.getElementById('audit-wrap');
   if (!logs.length) { wrap.innerHTML = '<p class="empty">No access events recorded yet.</p>'; return; }
   let html = '<table><tr><th>Time</th><th>User</th><th>Host</th><th>IP</th><th>Result</th></tr>';
@@ -243,6 +246,10 @@ function load() {
   const now = document.getElementById('updated-at');
   if (now) now.textContent = 'Updated ' + new Date().toLocaleTimeString();
 }
+
+// Coerce a possibly-null API payload (JSON null) into an array so the table
+// renderers never trip over a non-array value.
+function arr(x) { return Array.isArray(x) ? x : []; }
 
 function manualRefresh() {
   const btn = document.getElementById('refresh-btn');
