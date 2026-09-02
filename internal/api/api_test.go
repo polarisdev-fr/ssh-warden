@@ -432,4 +432,68 @@ func TestWebUI(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "SSH-Warden") {
 		t.Error("expected HTML body to contain 'SSH-Warden'")
 	}
+	if !strings.Contains(rec.Body.String(), "UI_AUTH_ENABLED = false") {
+		t.Error("expected auth flag to be false when no credentials configured")
+	}
+}
+
+func TestWebUI_RequiresAuth(t *testing.T) {
+	db, err := database.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	handler := NewServerWithUI(db, webhook.Nil(), "admin", "s3cret").Handler()
+
+	// Without credentials -> 401 + WWW-Authenticate.
+	req := httptest.NewRequest(http.MethodGet, "/ui", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, `Basic realm="SSH-Warden Dashboard"`) {
+		t.Errorf("expected WWW-Authenticate Basic realm header, got %q", got)
+	}
+
+	// Wrong password -> 401.
+	req = httptest.NewRequest(http.MethodGet, "/ui", nil)
+	req.SetBasicAuth("admin", "wrong")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for bad password, got %d", rec.Code)
+	}
+
+	// Correct credentials -> 200 with auth flag true.
+	req = httptest.NewRequest(http.MethodGet, "/ui", nil)
+	req.SetBasicAuth("admin", "s3cret")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for valid credentials, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "UI_AUTH_ENABLED = true") {
+		t.Error("expected auth flag to be true when credentials configured")
+	}
+}
+
+func TestWebUI_OnlyOneCredentialDisablesAuth(t *testing.T) {
+	db, err := database.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	// Only user set (no password) -> auth disabled, banner path active.
+	handler := NewServerWithUI(db, webhook.Nil(), "admin", "").Handler()
+
+	req := httptest.NewRequest(http.MethodGet, "/ui", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 when only one credential is set, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "UI_AUTH_ENABLED = false") {
+		t.Error("expected auth flag false when only one credential set")
+	}
 }

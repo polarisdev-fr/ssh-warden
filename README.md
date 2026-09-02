@@ -117,13 +117,29 @@ The server listens on `:8080` and exposes:
 
 When the server is running, open `http://localhost:8080/ui` in a browser to
 access the built-in Web UI. It displays all active leases and pending approval
-requests with **Approve** / **Reject** buttons. The dashboard auto-refreshes
-every 15 seconds.
+requests with **Approve** / **Reject** buttons, lets you **Revoke** an active
+lease, and shows the most recent access logs. The dashboard auto-refreshes
+every 15 seconds and offers a manual **Refresh** button. Expiry badges are
+color-coded (green > 30 min, orange ≤ 30 min, red ≤ 10 min).
 
 ```sh
 # Quick check in the browser
 open http://localhost:8080/ui
 ```
+
+By default the dashboard is served without authentication (it shows a warning
+banner in that case). To require a login, set the `WARDEN_UI_USER` and
+`WARDEN_UI_PASSWORD` environment variables on the server:
+
+```sh
+WARDEN_UI_USER=admin WARDEN_UI_PASSWORD=change-me go run ./cmd/server
+# or, in systemd, add to the [Service] section:
+#   Environment=WARDEN_UI_USER=admin
+#   Environment=WARDEN_UI_PASSWORD=change-me
+```
+
+When both variables are set, the `/ui` route requires HTTP Basic Auth and the
+warning banner disappears.
 
 ### OpenSSH host
 
@@ -258,6 +274,8 @@ effective username is resolved from `-u/--user`, then the config
 | `WARDEN_TLS_CERT`     | Server TLS certificate file path — enables HTTPS (optional).               |
 | `WARDEN_TLS_KEY`      | Server TLS private key file path — enables HTTPS (optional).               |
 | `WARDEN_TLS_CA_CERT`  | CA certificate file path — enables mTLS, requiring client certs (optional).|
+| `WARDEN_UI_USER`      | Basic Auth username for the `/ui` dashboard (optional).                   |
+| `WARDEN_UI_PASSWORD`  | Basic Auth password for the `/ui` dashboard (optional).                   |
 
 ### Webhook Notifications
 

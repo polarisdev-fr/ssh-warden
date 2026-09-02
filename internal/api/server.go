@@ -18,15 +18,33 @@ import (
 type Server struct {
 	db       *database.DB
 	notifier webhook.Notifier
+	// uiUser and uiPassword, when both non-empty, are the Basic Auth
+	// credentials required to access the /ui dashboard. When either is empty
+	// the dashboard is served without authentication and the UI shows a
+	// warning banner.
+	uiUser     string
+	uiPassword string
 }
 
 // NewServer creates an API Server backed by the given database and notifier.
 // The notifier is optional; pass webhook.Nil() to disable notifications.
 func NewServer(db *database.DB, notifier webhook.Notifier) *Server {
+	return NewServerWithUI(db, notifier, "", "")
+}
+
+// NewServerWithUI is like NewServer but also configures Basic Auth credentials
+// for the /ui dashboard. When both credentials are empty the dashboard is
+// served unauthenticated (and shows a warning banner).
+func NewServerWithUI(db *database.DB, notifier webhook.Notifier, uiUser, uiPassword string) *Server {
 	if notifier == nil {
 		notifier = webhook.Nil()
 	}
-	return &Server{db: db, notifier: notifier}
+	return &Server{
+		db:         db,
+		notifier:   notifier,
+		uiUser:     uiUser,
+		uiPassword: uiPassword,
+	}
 }
 
 // Handler constructs and returns the fully-configured HTTP router, including
@@ -44,7 +62,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerKeysRoutes(r)
 	s.registerLeasesRoutes(r)
 	s.registerAuditRoutes(r)
-	webui.RegisterUIRoutes(r)
+	webui.RegisterUIRoutes(r, s.uiUser, s.uiPassword)
 
 	return r
 }

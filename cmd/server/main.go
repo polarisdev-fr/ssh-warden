@@ -39,8 +39,13 @@ func run() error {
 	}
 
 	srv := &http.Server{
-		Addr:    defaultAddr,
-		Handler: api.NewServer(db, webhook.New(os.Getenv("WARDEN_WEBHOOK_URL"))).Handler(),
+		Addr: defaultAddr,
+		Handler: api.NewServerWithUI(
+			db,
+			webhook.New(os.Getenv("WARDEN_WEBHOOK_URL")),
+			os.Getenv("WARDEN_UI_USER"),
+			os.Getenv("WARDEN_UI_PASSWORD"),
+		).Handler(),
 	}
 
 	// Optional mTLS: when WARDEN_TLS_CERT and WARDEN_TLS_KEY are set the
