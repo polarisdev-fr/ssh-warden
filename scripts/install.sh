@@ -78,22 +78,29 @@ else
     esac
 
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    TARBALL="ssh-warden_${OS}_${ARCH}.tar.gz"
+    # GoReleaser uses the bare version (no 'v' prefix) in filenames.
+    FILE_VER="${VERSION#v}"
+    TARBALL="ssh-warden-ssh-warden-server_${FILE_VER}_${OS}_${ARCH}.tar.gz"
     URL="https://github.com/${REPO}/releases/download/${VERSION}/${TARBALL}"
 
     info "Fetching ${TARBALL}..."
     curl -fsSL "$URL" -o "${TMPDIR}/${TARBALL}"
     tar -xzf "${TMPDIR}/${TARBALL}" -C "${TMPDIR}"
 
-    if [[ -f "${TMPDIR}/ssh-warden-server" ]]; then
-        mv "${TMPDIR}/ssh-warden-server" "${TMPDIR}/ssh-warden-server.bin"
-    elif [[ -f "${TMPDIR}/bin/ssh-warden-server" ]]; then
-        mv "${TMPDIR}/bin/ssh-warden-server" "${TMPDIR}/ssh-warden-server.bin"
-    elif [[ -f "${TMPDIR}/ssh-warden-server.exe" ]]; then
-        mv "${TMPDIR}/ssh-warden-server.exe" "${TMPDIR}/ssh-warden-server.bin"
-    else
+    # Find the server binary in the extracted archive. GoReleaser names it
+    # after the build, e.g. "ssh-warden-server".
+    SERVER_BIN=""
+    for candidate in "${TMPDIR}/ssh-warden-server" "${TMPDIR}/bin/ssh-warden-server" \
+                     "${TMPDIR}/ssh-warden-server.exe" "${TMPDIR}/bin/ssh-warden-server.exe"; do
+        if [[ -f "$candidate" ]]; then
+            SERVER_BIN="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$SERVER_BIN" ]]; then
         die "Could not find ssh-warden-server in the release archive."
     fi
+    mv "$SERVER_BIN" "${TMPDIR}/ssh-warden-server"
 fi
 
 # --- Install binary ----------------------------------------------------
