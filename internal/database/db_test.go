@@ -223,3 +223,117 @@ func TestHostValidation(t *testing.T) {
 		t.Error("unknown host should be rejected")
 	}
 }
+
+func TestPendingLeaseWorkflow(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	mustAddKey(t, db, "alice")
+
+	// Create a pending lease — should NOT grant keys.
+	lease, err := db.CreatePendingLease("alice", "srv-web-01", "pending work", 1*time.Hour)
+	if err != nil {
+		t.Fatalf("CreatePendingLease: %v", err)
+	}
+	if lease.Status != "pending" {
+		t.Errorf("expected status pending, got %q", lease.Status)
+	}
+
+	keys, err := db.GetValidKeysForUser("alice", "srv-web-01")
+	if err != nil {
+		t.Fatalf("GetValidKeysForUser: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Errorf("pending lease should not grant keys, got %v", keys)
+	}
+
+	// Pending lease must appear in GetPendingLeases.
+	pending, err := db.GetPendingLeases("")
+	if err != nil {
+		t.Fatalf("GetPendingLeases: %v", err)
+	}
+	if len(pending) != 1 || pending[0].ID != lease.ID {
+		t.Fatalf("expected 1 pending lease with ID %d, got %+v", lease.ID, pending)
+	}
+
+	// Approve the lease — now it should grant keys.
+	if err := db.ApproveLease(lease.ID); err != nil {
+		t.Fatalf("ApproveLease: %v", err)
+	}
+	keys, err = db.GetValidKeysForUser("alice", "srv-web-01")
+	if err != nil {
+		t.Fatalf("GetValidKeysForUser after approve: %v", err)
+	}
+	if len(keys) != 1 {
+		t.Errorf("approved lease should grant 1 key, got %v", keys)
+	}
+
+	// Approved lease must not appear in pending list.
+	pending, err = db.GetPendingLeases("")
+	if err != nil {
+		t.Fatalf("GetPendingLeases after approve: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Errorf("expected 0 pending leases after approve, got %d", len(pending))
+	}
+}
+
+func TestRejectLeaseWorkflow(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	mustAddKey(t, db, "bob")
+
+	lease, err := db.CreatePendingLease("bob", "srv-db-01", "need access", 1*time.Hour)
+	if err != nil {
+		t.Fatalf("CreatePendingLease: %v", err)
+	}
+
+	// Reject the lease.
+	if err := db.RejectLease(lease.ID); err != nil {
+		t.Fatalf("RejectLease: %v", err)
+	}
+
+	// Denied lease must not grant keys.
+	keys, err := db.GetValidKeysForUser("bob", "srv-db-01")
+	if err != nil {
+		t.Fatalf("GetValidKeysForUser after reject: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Errorf("denied lease should not grant keys, got %v", keys)
+	}
+
+	// Denied lease must not appear in pending list.
+	pending, err := db.GetPendingLeases("")
+	if err != nil {
+		t.Fatalf("GetPendingLeases after reject: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Errorf("expected 0 pending after reject, got %d", len(pending))
+	}
+}
+
+func TestApproveNonPendingLease(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	mustAddKey(t, db, "alice")
+
+	// Approving an already-approved lease must return ErrLeaseNotPending.
+	lease, err := db.CreateLease("alice", "srv-web-01", "approved", 1*time.Hour)
+	if err != nil {
+		t.Fatalf("CreateLease: %v", err)
+	}
+	if err := db.ApproveLease(lease.ID); err != ErrLeaseNotPending {
+		t.Errorf("expected ErrLeaseNotPending, got %v", err)
+	}
+}
+
+func TestApproveNonExistentLease(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	if err := db.ApproveLease(9999); err != ErrLeaseNotFound {
+		t.Errorf("expected ErrLeaseNotFound, got %v", err)
+	}
+}

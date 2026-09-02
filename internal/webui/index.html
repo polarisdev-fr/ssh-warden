@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSH-Warden</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --fg: #e6edf3; --dim: #8b949e; --green: #3fb950; --yellow: #d29922; --red: #f85149; --blue: #58a6ff; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--fg); font-family:'Segoe UI',system-ui,sans-serif; padding:24px 40px; line-height:1.5; }
+  h1 { font-size:20px; font-weight:600; margin-bottom:24px; display:flex; align-items:center; gap:10px; }
+  h1 span { color:var(--blue); }
+  h2 { font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--dim); margin:24px 0 12px; }
+  table { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  th { text-align:left; padding:10px 14px; font-size:12px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:0.4px; border-bottom:1px solid var(--border); }
+  td { padding:10px 14px; font-size:13px; border-bottom:1px solid var(--border); }
+  tr:last-child td { border-bottom:none; }
+  tr:hover { background:rgba(56,139,253,0.04); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .badge-green { background:rgba(63,185,80,0.15); color:var(--green); }
+  .badge-yellow { background:rgba(210,153,34,0.15); color:var(--yellow); }
+  .btn { border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:background 0.15s; }
+  .btn-approve { background:var(--green); color:#000; }
+  .btn-approve:hover { background:#2ea043; }
+  .btn-reject { background:var(--red); color:#fff; }
+  .btn-reject:hover { background:#da3633; }
+  .btn:disabled { opacity:0.4; cursor:default; }
+  .empty { color:var(--dim); font-size:13px; padding:16px 14px; }
+  .row { display:flex; gap:8px; }
+  .toast { position:fixed; bottom:24px; right:24px; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:500; opacity:0; transition:opacity 0.3s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .toast-ok { background:var(--green); color:#000; }
+  .toast-err { background:var(--red); color:#fff; }
+</style>
+</head>
+<body>
+
+<h1>&#9776; <span>SSH-Warden</span> Dashboard</h1>
+
+<h2>Pending Approvals</h2>
+<div id="pending-wrap"><p class="empty">Loading&hellip;</p></div>
+
+<h2>Active Leases</h2>
+<div id="leases-wrap"><p class="empty">Loading&hellip;</p></div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+function toast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (ok ? 'toast-ok' : 'toast-err');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+function api(method, path) {
+  return fetch(path, { method }).then(r => {
+    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+    return r.json();
+  });
+}
+
+function fmtDur(expiresAt) {
+  const diff = new Date(expiresAt) - new Date();
+  if (diff <= 0) return 'expired';
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + 'm';
+}
+
+function renderPending(leases) {
+  const wrap = document.getElementById('pending-wrap');
+  if (!leases.length) { wrap.innerHTML = '<p class="empty">No leases waiting for approval.</p>'; return; }
+  let html = '<table><tr><th>ID</th><th>User</th><th>Target</th><th>Reason</th><th>Created</th><th></th></tr>';
+  for (const l of leases) {
+    const created = new Date(l.created_at).toLocaleString();
+    html += '<tr><td>#' + l.id + '</td><td>' + esc(l.username) + '</td><td>' + esc(l.target_host) + '</td><td>' + esc(l.reason || '') + '</td><td>' + created + '</td>'
+      + '<td><div class="row">'
+      + '<button class="btn btn-approve" onclick="approve(' + l.id + ',this)">Approve</button> '
+      + '<button class="btn btn-reject" onclick="reject(' + l.id + ',this)">Reject</button>'
+      + '</div></td></tr>';
+  }
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+function renderLeases(leases) {
+  const wrap = document.getElementById('leases-wrap');
+  if (!leases.length) { wrap.innerHTML = '<p class="empty">No active leases.</p>'; return; }
+  let html = '<table><tr><th>ID</th><th>User</th><th>Target</th><th>Reason</th><th>Expires In</th><th>Status</th></tr>';
+  for (const l of leases) {
+    const cls = l.status === 'approved' ? 'badge-green' : 'badge-yellow';
+    html += '<tr><td>#' + l.id + '</td><td>' + esc(l.username) + '</td><td>' + esc(l.target_host) + '</td><td>' + esc(l.reason || '') + '</td><td>' + fmtDur(l.expires_at) + '</td>'
+      + '<td><span class="badge ' + cls + '">' + esc(l.status) + '</span></td></tr>';
+  }
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function approve(id, btn) {
+  btn.disabled = true;
+  btn.textContent = '...';
+  api('POST', '/api/v1/leases/' + id + '/approve')
+    .then(() => { toast('Lease #' + id + ' approved', true); load(); })
+    .catch(e => { toast('Failed: ' + e.message, false); btn.disabled = false; btn.textContent = 'Approve'; });
+}
+
+function reject(id, btn) {
+  btn.disabled = true;
+  btn.textContent = '...';
+  api('POST', '/api/v1/leases/' + id + '/reject')
+    .then(() => { toast('Lease #' + id + ' rejected', true); load(); })
+    .catch(e => { toast('Failed: ' + e.message, false); btn.disabled = false; btn.textContent = 'Reject'; });
+}
+
+function load() {
+  api('GET', '/api/v1/leases/pending').then(renderPending).catch(() => renderPending([]));
+  api('GET', '/api/v1/leases').then(renderLeases).catch(() => renderLeases([]));
+}
+
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>

@@ -18,6 +18,9 @@ var (
 	// ErrLeaseAlreadyExpired is returned when the lease exists but has
 	// already expired, so it cannot be revoked again.
 	ErrLeaseAlreadyExpired = errors.New("lease already expired")
+	// ErrLeaseNotPending is returned when an approve/reject operation
+	// targets a lease that is not in the pending state.
+	ErrLeaseNotPending = errors.New("lease is not pending approval")
 )
 
 // DB wraps the underlying *sql.DB connection for SSH-Warden's schema.
@@ -62,6 +65,7 @@ func InitDB(dbPath string) (*DB, error) {
 		target_host TEXT NOT NULL,
 		expires_at DATETIME NOT NULL,
 		reason TEXT,
+		status TEXT NOT NULL DEFAULT 'approved',
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 	);
@@ -88,6 +92,19 @@ func InitDB(dbPath string) (*DB, error) {
 	`
 	if _, err := conn.Exec(schema); err != nil {
 		return nil, fmt.Errorf("cannot create tables: %w", err)
+	}
+
+	// Migration: add status column to existing leases tables that predate
+	// the approval workflow.
+	var hasStatus int
+	if err := conn.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info('leases') WHERE name = 'status'",
+	).Scan(&hasStatus); err == nil && hasStatus == 0 {
+		if _, err := conn.Exec(
+			"ALTER TABLE leases ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'",
+		); err != nil {
+			return nil, fmt.Errorf("cannot migrate leases schema: %w", err)
+		}
 	}
 
 	return &DB{conn: conn}, nil
@@ -150,7 +167,7 @@ func (db *DB) seedDemoUser() error {
 	}
 
 	expiresAt := time.Now().UTC().Add(2 * time.Hour)
-	_, err = tx.Exec("INSERT INTO leases (user_id, target_host, expires_at, reason) VALUES (?, '*', ?, 'Emergency maintenance')", userID, expiresAt)
+	_, err = tx.Exec("INSERT INTO leases (user_id, target_host, expires_at, reason, status) VALUES (?, '*', ?, 'Emergency maintenance', ?)", userID, expiresAt, "approved")
 	if err != nil {
 		return err
 	}

@@ -8,6 +8,8 @@ warden
 ├── request          Request temporary access to a server
 ├── status           List active leases
 ├── revoke           Revoke an active lease immediately
+├── approve          Approve a pending lease
+├── reject           Reject a pending lease
 ├── key add          Register a public key for a user
 ├── config show      Show the current configuration and active config file
 ├── config set       Set a configuration value (api_url, default_user)
@@ -184,7 +186,75 @@ Error: lease not found
 
 ---
 
-## 4. `warden key add`
+## 4. `warden approve`
+
+Approve a pending lease, granting the user SSH access. The lease must be in
+the `pending` state.
+
+```
+Usage:
+  warden approve <lease_id>
+
+Arguments:
+  lease_id    Numeric ID of the pending lease to approve
+```
+
+### Example
+
+```sh
+warden approve 58
+```
+
+### Output
+
+```
+Lease #58 approved. SSH access has been granted.
+```
+
+Errors:
+
+```
+Error: lease not found
+Error: lease is not pending approval
+```
+
+---
+
+## 5. `warden reject`
+
+Reject a pending lease, denying the user SSH access. The lease must be in
+the `pending` state.
+
+```
+Usage:
+  warden reject <lease_id>
+
+Arguments:
+  lease_id    Numeric ID of the pending lease to reject
+```
+
+### Example
+
+```sh
+warden reject 59
+```
+
+### Output
+
+```
+Lease #59 rejected. SSH access has been denied.
+```
+
+Errors:
+
+```
+Error: lease not found
+Error: lease is not pending approval
+```
+
+---
+
+## 6. `warden key add`
 
 Register a public key for a user. The user is created on the fly if missing.
 The key is only honored by OpenSSH while the user holds an active lease for the
@@ -241,7 +311,7 @@ Error: failed to read key file /etc/does-not-exist: open /etc/does-not-exist: no
 
 ---
 
-## 5. `warden config`
+## 7. `warden config`
 
 Manage the *local* CLI configuration (`config.yaml` in the user config
 directory) so you do not repeat `--api` and `-u`.
@@ -258,7 +328,7 @@ The file lives at `~/.config/ssh-warden/config.yaml` (Linux) or
 `%APPDATA%\ssh-warden\config.yaml` (Windows). It is created with restrictive
 permissions (`0700` directory, `0600` file).
 
-### 5.1 `warden config show`
+### 7.1 `warden config show`
 
 Display the active config file path and the current values.
 
@@ -277,7 +347,7 @@ default_user   : alice
 
 On first use (no file yet), it prints the environment-derived defaults.
 
-### 5.2 `warden config set <key> <value>`
+### 7.2 `warden config set <key> <value>`
 
 Update one key and persist it.
 
@@ -322,7 +392,7 @@ Error: no username provided: set it with -u/--user or run 'warden config set def
 
 ---
 
-## 6. `warden audit`
+## 8. `warden audit`
 
 List authorization audit events recorded by the API.
 
@@ -377,7 +447,7 @@ No audit events recorded.
 
 ---
 
-## 7. Autocompletion & help
+## 9. Autocompletion & help
 
 Every command supports `--help` / `-h`. Cobra also auto-generates shell
 completion:
@@ -400,6 +470,8 @@ Source the output to enable tab-completion in your shell.
 | Get access for 30 min | `warden request -u alice -t srv-prod-01 -d 30m -r "reason"` |
 | See who has access | `warden status` |
 | Kill someone's access | `warden revoke 42` |
+| Approve a pending request | `warden approve 58` |
+| Reject a pending request | `warden reject 59` |
 | Register your key | `warden key add ~/.ssh/id_ed25519.pub -u alice` |
 | Point at another API | `warden --api https://warden.example.com ...` or `warden config set api_url ...` |
 | Stop passing `-u` | `warden config set default_user alice` |

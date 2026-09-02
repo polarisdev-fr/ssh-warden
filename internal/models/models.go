@@ -21,6 +21,19 @@ type SSHKey struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Lease status values describe the approval state of a lease. By default
+// leases are approved immediately; an approval workflow can instead create
+// them in a pending state that requires a second sign-off before taking
+// effect.
+const (
+	// LeaseStatusApproved means the lease is active and grants key access.
+	LeaseStatusApproved = "approved"
+	// LeaseStatusPending means the lease waits for a second sign-off.
+	LeaseStatusPending = "pending"
+	// LeaseStatusDenied means the lease was explicitly rejected.
+	LeaseStatusDenied = "denied"
+)
+
 // Lease is a time-boxed grant of SSH access for a specific user against a
 // target host (or "*" for all hosts).
 type Lease struct {
@@ -30,6 +43,7 @@ type Lease struct {
 	ExpiresAt  time.Time `json:"expires_at"`
 	Reason     string    `json:"reason"`
 	CreatedAt  time.Time `json:"created_at"`
+	Status     string    `json:"status"`
 }
 
 // LeaseInfo is a read-only projection of a lease including the username,
@@ -41,6 +55,7 @@ type LeaseInfo struct {
 	Reason     string    `json:"reason"`
 	ExpiresAt  time.Time `json:"expires_at"`
 	CreatedAt  time.Time `json:"created_at"`
+	Status     string    `json:"status"`
 }
 
 // Host represents a machine that may request keys via the API. The host is

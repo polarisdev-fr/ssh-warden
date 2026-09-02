@@ -10,6 +10,7 @@ import (
 
 	"github.com/polarisdev-fr/ssh-warden/internal/database"
 	"github.com/polarisdev-fr/ssh-warden/internal/webhook"
+	"github.com/polarisdev-fr/ssh-warden/internal/webui"
 )
 
 // Server bundles the dependencies needed by the HTTP handlers and builds the
@@ -43,6 +44,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerKeysRoutes(r)
 	s.registerLeasesRoutes(r)
 	s.registerAuditRoutes(r)
+	webui.RegisterUIRoutes(r)
 
 	return r
 }

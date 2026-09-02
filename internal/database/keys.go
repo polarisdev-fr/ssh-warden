@@ -21,11 +21,12 @@ func (db *DB) GetValidKeysForUser(username, targetHost string) ([]string, error)
 	JOIN leases l ON l.user_id = u.id
 	WHERE u.username = ?
 	  AND l.expires_at > ?
+	  AND l.status = ?
 	  AND (l.target_host = ? OR l.target_host = '*');
 	`
 
 	now := time.Now().UTC()
-	rows, err := db.conn.Query(query, username, now, targetHost)
+	rows, err := db.conn.Query(query, username, now, "approved", targetHost)
 	if err != nil {
 		return nil, err
 	}

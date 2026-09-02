@@ -1,12 +1,44 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
+
+// tlsTransport returns an *http.Transport configured to trust the CA
+// certificate at the path specified by the WARDEN_TLS_CA_CERT environment
+// variable. When the variable is unset or empty, nil is returned and a
+// default transport should be used.
+func tlsTransport() *http.Transport {
+	caPath := os.Getenv("WARDEN_TLS_CA_CERT")
+	if caPath == "" {
+		return nil
+	}
+
+	caCert, err := os.ReadFile(caPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: cannot read CA certificate %s: %v\n", caPath, err)
+		return nil
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caCert) {
+		fmt.Fprintf(os.Stderr, "warning: cannot parse CA certificate from %s\n", caPath)
+		return nil
+	}
+
+	return &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs: pool,
+		},
+	}
+}
 
 // fetchKeys queries the Warden API for the user's currently authorized public
 // keys. The target host identity and the bearer token are supplied explicitly;
@@ -25,7 +57,8 @@ func fetchKeys(apiURL, username, hostID, token string) ([]byte, int, error) {
 	}
 
 	client := &http.Client{
-		Timeout: 3 * time.Second,
+		Timeout:   3 * time.Second,
+		Transport: tlsTransport(),
 	}
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)

@@ -81,23 +81,32 @@ func (c *wardenClient) get(cmdPath string, params url.Values) ([]byte, int, erro
 	return c.do(req)
 }
 
-// post creates and performs a JSON POST request against the given path.
+// post creates and performs a JSON POST request against the given path. When
+// payload is nil the request body is empty.
 func (c *wardenClient) post(cmdPath string, payload any) ([]byte, int, error) {
 	u, err := c.url(cmdPath)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, 0, fmt.Errorf("serialization error: %w", err)
+	var reader io.Reader
+	if payload != nil {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return nil, 0, fmt.Errorf("serialization error: %w", err)
+		}
+		reader = bytes.NewReader(body)
+	} else {
+		reader = http.NoBody
 	}
 
-	req, err := http.NewRequest(http.MethodPost, u, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, u, reader)
 	if err != nil {
 		return nil, 0, fmt.Errorf("request creation error: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	return c.do(req)
 }
 

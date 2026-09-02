@@ -120,12 +120,97 @@ Notes:
 
 ---
 
-## 6. Reverse proxy & TLS
+## 6. mTLS configuration
+
+SSH-Warden supports **mutual TLS (mTLS)** as an optional layer of
+authentication between the OpenSSH host helpers and the Warden API. When
+configured, both the server and the client validate each other's certificate,
+providing stronger authentication than bearer tokens alone.
+
+### Server-side setup
+
+Set three environment variables when starting the server:
+
+| Variable             | Description                                             |
+|----------------------|---------------------------------------------------------|
+| `WARDEN_TLS_CERT`    | Path to the server's TLS certificate (PEM).             |
+| `WARDEN_TLS_KEY`     | Path to the server's TLS private key (PEM).             |
+| `WARDEN_TLS_CA_CERT` | Path to the CA certificate that signed client certs.    |
+
+When `WARDEN_TLS_CERT` and `WARDEN_TLS_KEY` are set, the server switches from
+`ListenAndServe` to `ListenAndServeTLS` and begins serving HTTPS on `:8080`.
+
+When `WARDEN_TLS_CA_CERT` is additionally set, the server requires all
+connecting clients to present a valid client certificate signed by that CA.
+The server enforces `tls.RequireAndVerifyClientCert` — unauthenticated HTTP
+connections are refused.
+
+```sh
+WARDEN_TLS_CERT=server.crt \
+WARDEN_TLS_KEY=server.key \
+WARDEN_TLS_CA_CERT=ca.crt \
+./bin/ssh-warden-server
+```
+
+### Client-side setup (helper)
+
+The `ssh-warden-helper` reads the `WARDEN_TLS_CA_CERT` environment variable.
+When set, it loads the CA certificate and uses it to verify the server's TLS
+certificate over HTTPS. This prevents the helper from connecting to
+unauthorized API endpoints.
+
+```ini
+# /etc/ssh/sshd_config
+AuthorizedKeysCommand /usr/local/bin/ssh-warden-helper %u
+AuthorizedKeysCommandUser nobody
+
+# Environment for mTLS (can also be set in a wrapper script or systemd unit)
+WARDEN_API_URL=https://warden.internal:8080
+WARDEN_TLS_CA_CERT=/etc/ssh-warden/ca.crt
+```
+
+### Certificate generation example
+
+```sh
+# Generate a self-signed CA
+openssl req -x509 -newkey rsa:4099 -days 365 -nodes \
+  -keyout ca.key -out ca.crt -subj "/CN=SSH-Warden CA"
+
+# Generate server certificate signed by the CA
+openssl req -newkey rsa:4099 -nodes -keyout server.key \
+  -out server.csr -subj "/CN=warden.internal"
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key \
+  -CAcreateserial -out server.crt -days 365
+
+# Generate a client certificate signed by the CA
+openssl req -newkey rsa:4099 -nodes -keyout client.key \
+  -out client.csr -subj "/CN=srv-prod-01"
+openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key \
+  -CAcreateserial -out client.crt -days 365
+```
+
+Place `ca.crt`, `client.crt`, and `client.key` on each OpenSSH host under
+`/etc/ssh-warden/` with `chmod 600` and `chown root:root`.
+
+### When to use mTLS
+
+mTLS is recommended when:
+
+- Hosts are on an untrusted network and bearer tokens alone are insufficient.
+- You want to enforce that only provisioned machines can query the API.
+- Compliance requirements demand certificate-based authentication.
+
+mTLS is optional and fully backward-compatible: hosts not configured with
+`WARDEN_TLS_CA_CERT` continue to authenticate using bearer tokens.
+
+---
+
+## 7. Reverse proxy & TLS
 
 The API carries sensitive payloads (public keys, host tokens in the
 `Authorization` header, audit decisions). In production it **must** run behind
-TLS. The API itself binds to plain HTTP by design, so use a reverse proxy to
-terminate TLS.
+TLS. The API supports native mTLS (see section 6) or can run behind a reverse
+proxy to terminate TLS.
 
 ### Recommended topology
 
@@ -197,7 +282,7 @@ server {
 
 ---
 
-## 7. Webhook notifications
+## 8. Webhook notifications
 
 Webhooks can leak metadata to the receiving service. Decide consciously whether
 you want the audited decisions (usernames, host names, IP addresses) to leave
@@ -211,10 +296,11 @@ your network:
 
 ---
 
-## 8. Summary checklist
+## 9. Summary checklist
 
 - [ ] Server runs as a dedicated non-login user; DB files not world-readable.
-- [ ] API bound to loopback; TLS terminated by a reverse proxy.
+- [ ] API bound to loopback; TLS terminated by a reverse proxy or mTLS enabled.
+- [ ] mTLS CA and client certificates provisioned on hosts if using mutual TLS.
 - [ ] Host tokens are `chmod 600`, root-owned, registered server-side, and
       never committed to git.
 - [ ] Helper is root-owned `0755`, runs as `nobody`.

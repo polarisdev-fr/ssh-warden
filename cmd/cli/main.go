@@ -31,6 +31,8 @@ func main() {
 		newRequestCmd(),
 		newStatusCmd(),
 		newRevokeCmd(),
+		newApproveCmd(),
+		newRejectCmd(),
 		newKeyCmd(),
 		newConfigCmd(),
 		newAuditCmd(),

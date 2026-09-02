@@ -11,9 +11,11 @@ import (
 
 // Audit actions recorded to the audit_logs table.
 const (
-	actionKeyGranted = "KEY_REQUEST_GRANTED"
-	actionKeyDenied  = "KEY_REQUEST_DENIED"
-	actionHostFailed = "HOST_AUTH_FAILED"
+	actionKeyGranted    = "KEY_REQUEST_GRANTED"
+	actionKeyDenied     = "KEY_REQUEST_DENIED"
+	actionHostFailed    = "HOST_AUTH_FAILED"
+	actionLeaseApproved = "LEASE_APPROVED"
+	actionLeaseRejected = "LEASE_REJECTED"
 )
 
 // clientIP extracts the real client IP. When X-Forwarded-For is present and

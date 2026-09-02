@@ -57,6 +57,14 @@ The full documentation lives in [`docs/`](docs/):
   automatically.
 - **Target host scoping** — a lease applies to one host (`srv-prod-01`) or to
   all hosts (`*`); machines only ever see keys they are entitled to.
+- **Approval workflows** — leases can be created in a pending state, requiring a
+  second sign-off (`warden approve` / `warden reject`) before SSH access is
+  granted.
+- **mTLS host authentication** — hosts can authenticate to the API with mutual
+  TLS client certificates, verified against a trusted CA, instead of (or in
+  addition to) bearer tokens.
+- **Web UI dashboard** — a built-in browser interface at `http://localhost:8080/ui`
+  showing active leases, pending approvals, and approve/reject controls.
 - **Machine host tokens** — each host authenticates with a bearer token whose
   SHA-256 digest is stored, checked in constant time.
 - **Zero background daemons** — enforcement happens inside OpenSSH via
@@ -93,12 +101,29 @@ go run ./cmd/server
 
 The server listens on `:8080` and exposes:
 
-| Method | Path                     | Description                     |
-| ------ | ------------------------ | ------------------------------- |
-| GET    | `/api/v1/keys/{user}`    | Public keys for a user (Bearer) |
-| GET    | `/api/v1/leases`         | List active leases              |
-| POST   | `/api/v1/leases`         | Create a lease                  |
-| DELETE | `/api/v1/leases/{id}`    | Revoke a lease                  |
+| Method | Path                        | Description                       |
+| ------ | -------------------------- | --------------------------------- |
+| GET    | `/api/v1/keys/{user}`      | Public keys for a user (Bearer)   |
+| GET    | `/api/v1/leases`           | List active leases                |
+| POST   | `/api/v1/leases`           | Create a lease                    |
+| DELETE | `/api/v1/leases/{id}`      | Revoke a lease                    |
+| GET    | `/api/v1/leases/pending`   | List pending approval leases      |
+| POST   | `/api/v1/leases/{id}/approve` | Approve a pending lease        |
+| POST   | `/api/v1/leases/{id}/reject`  | Reject a pending lease         |
+| GET    | `/api/v1/audit`            | Audit log                         |
+| GET    | `/ui`                      | Web UI dashboard                  |
+
+### Web UI dashboard
+
+When the server is running, open `http://localhost:8080/ui` in a browser to
+access the built-in Web UI. It displays all active leases and pending approval
+requests with **Approve** / **Reject** buttons. The dashboard auto-refreshes
+every 15 seconds.
+
+```sh
+# Quick check in the browser
+open http://localhost:8080/ui
+```
 
 ### OpenSSH host
 
@@ -113,6 +138,7 @@ AuthorizedKeysCommandUser nobody
 #   WARDEN_HOST_TOKEN   machine bearer token (or /etc/ssh-warden/token)
 #   WARDEN_HOST_ID      this host's identity (defaults to system hostname)
 #   WARDEN_API_URL      the Warden API (default http://127.0.0.1:8080)
+#   WARDEN_TLS_CA_CERT  path to CA cert for mTLS (optional, for HTTPS)
 ```
 
 When OpenSSH receives a connection it runs the helper, which asks the Warden
@@ -141,7 +167,17 @@ warden status -u alice
 
 # Cut a lease immediately (SSH access stops at once)
 warden revoke 42
+
+# Approve a pending lease (grants SSH access)
+warden approve 58
+
+# Reject a pending lease (denies SSH access)
+warden reject 59
 ```
+
+Pending leases are created via the API by passing `"requires_approval": true`
+in the JSON body of `POST /api/v1/leases`. The CLI `warden approve` and
+`warden reject` commands are used to process them.
 
 Running `warden request` with no arguments opens an interactive wizard to fill
 the username, target host, duration and reason step by step. It pre-fills the
@@ -219,6 +255,9 @@ effective username is resolved from `-u/--user`, then the config
 |-----------------------|-----------------------------------------------------------------------------|
 | `WARDEN_API_URL`      | Fallback API URL for the CLI (after the `--api` flag, before the config).   |
 | `WARDEN_WEBHOOK_URL`  | Server-side webhook endpoint for critical audit notifications (optional).   |
+| `WARDEN_TLS_CERT`     | Server TLS certificate file path — enables HTTPS (optional).               |
+| `WARDEN_TLS_KEY`      | Server TLS private key file path — enables HTTPS (optional).               |
+| `WARDEN_TLS_CA_CERT`  | CA certificate file path — enables mTLS, requiring client certs (optional).|
 
 ### Webhook Notifications
 
@@ -231,25 +270,26 @@ WARDEN_WEBHOOK_URL="https://hooks.example.com/xxx" go run ./cmd/server
 ```
 
 When the variable is empty (or unset), notifications are silently disabled.
-When set, every `KEY_REQUEST_GRANTED`, `KEY_REQUEST_DENIED` and
-`HOST_AUTH_FAILED` event triggers an asynchronous, non-blocking webhook POST
-with a 3-second timeout, so the API response time is never affected.
+When set, every `KEY_REQUEST_GRANTED`, `KEY_REQUEST_DENIED`,
+`HOST_AUTH_FAILED`, `LEASE_APPROVED` and `LEASE_REJECTED` event triggers an
+asynchronous, non-blocking webhook POST with a 3-second timeout, so the API
+response time is never affected.
 
 The payload format is chosen automatically:
 
 - **Discord** — if the URL contains `discord.com/api/webhooks`, a formatted
-  embed is sent, color-coded by outcome (green for granted, orange for
-  denied, red for failed authentication) with User, Target Host, Client IP,
-  Reason and Timestamp fields.
+  embed is sent, color-coded by outcome (green for granted/approved, orange for
+  denied/rejected, red for failed authentication) with User, Target Host, Client
+  IP, Reason and Timestamp fields.
 - **Generic JSON** — otherwise a Slack / Gotify / Ntfy compatible payload is
   sent: `{"event": "...", "username": "...", "target_host": "...", "reason":
   "...", "client_ip": "...", "created_at": "..."}`.
 
 ## Roadmap
 
-- **mTLS** between hosts and the Warden API for mutual authentication.
-- **Web UI** for a friendly view of leases and approvals.
-- **Approval workflows** so leases can require a second sign-off before
+- [x] **mTLS** between hosts and the Warden API for mutual authentication.
+- [x] **Web UI** for a friendly view of leases and approvals.
+- [x] **Approval workflows** so leases can require a second sign-off before
   they take effect.
 
 ## License
