@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a new feature or improvement for SSH-Warden
+labels: [enhancement, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement. Describe the problem you're
+        solving and the change you'd like so the maintainers can evaluate it
+        together with the project's [design principles](../../docs/architecture.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What is the pain point or missing capability?
+      placeholder: "As a server admin, I want ... because ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should the feature behave?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you tried or thought about, and why they fall short.
+    validations:
+      required: false
+  - type: input
+    id: component
+    attributes:
+      label: Affected area (optional)
+      description: CLI, server API, helper, webhooks, docs...
+      placeholder: "warden CLI"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true

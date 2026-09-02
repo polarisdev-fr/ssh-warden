@@ -1,0 +1,81 @@
+name: Bug report
+description: Report a reproducible bug in SSH-Warden
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in the details
+        below so the issue can be reproduced and fixed quickly. For security
+        vulnerabilities, **do not** file a public issue — see
+        [SECURITY.md](../../SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Which release or commit are you using? (e.g. `v0.1.1`, `main@543d760`)
+      placeholder: "v0.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of SSH-Warden is affected?
+      options:
+        - server (API)
+        - warden CLI
+        - ssh-warden-helper (host agent)
+        - database / persistence
+        - webhook notifications
+        - documentation / build
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, exact steps to trigger the bug.
+      placeholder: |
+        1. Start the server with `go run ./cmd/server`
+        2. Run `warden request -u alice -t srv-prod-01 -d 30m`
+        3. See error: ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / output
+      description: Paste the command output, server logs, or audit-log excerpt.
+      render: shell
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS and Go version (e.g. `Linux 5.15`, `Go 1.27.1`)
+      placeholder: "Linux 5.15 / Go 1.27.1"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I can reproduce this reliably
+          required: true

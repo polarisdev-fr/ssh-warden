@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contributing guide
+    url: https://github.com/polarisdev-fr/ssh-warden/blob/main/CONTRIBUTING.md
+    about: Read the guidelines before opening issues or pull requests.
+  - name: Security policy
+    url: https://github.com/polarisdev-fr/ssh-warden/blob/main/SECURITY.md
+    about: Report security vulnerabilities here privately.
+  - name: Documentation
+    url: https://github.com/polarisdev-fr/ssh-warden/tree/main/docs
+    about: Check the docs (architecture, installation, CLI reference, security) first.
