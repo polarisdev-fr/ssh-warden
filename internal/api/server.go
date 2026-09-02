@@ -41,6 +41,23 @@ func (s *Server) WithSystemInfo(dbPath string, mtlsEnabled bool) *Server {
 	return s
 }
 
+// currentUserName returns the username of the currently authenticated UI
+// visitor: the OIDC session user when OIDC is enabled, otherwise the Basic
+// Auth username. It returns "" when no authentication is configured.
+func (s *Server) currentUserName(r *http.Request) string {
+	if pr := s.oidcProvider; pr != nil {
+		if id, err := pr.CurrentUser(r); err == nil {
+			return id.Username
+		}
+		return ""
+	}
+	user, _, ok := r.BasicAuth()
+	if !ok {
+		return ""
+	}
+	return user
+}
+
 // NewServer creates an API Server backed by the given database and notifier.
 // The notifier is optional; pass webhook.Nil() to disable notifications.
 func NewServer(db *database.DB, notifier webhook.Notifier) *Server {
@@ -113,5 +130,42 @@ func (s *Server) registerUIRoutes(r chi.Router) {
 		auth.BasicPassword = s.uiPassword
 	}
 
+	// The CLI token-issuing endpoint and the /ui/cli-auth approve page share
+	// the same guard as the dashboard, so only an authenticated UI user can
+	// mint CLI tokens.
+	s.registerCLIAuth(r, auth)
+
 	webui.RegisterUIRoutes(r, auth)
+}
+
+// uiGuard returns the authentication middleware protecting the UI surface
+// (dashboard, cli-auth page and CLI token endpoint). It is nil when the UI is
+// open.
+func (s *Server) uiGuard(auth webui.UIAuth) func(http.Handler) http.Handler {
+	if auth.Guard != nil {
+		return auth.Guard
+	}
+	if auth.BasicUser != "" && auth.BasicPassword != "" {
+		return webui.BasicAuth(auth.BasicUser, auth.BasicPassword)
+	}
+	return nil
+}
+
+// registerCLIAuth mounts the /ui/cli-auth page (guarded by the UI auth) and
+// the POST /api/v1/user-tokens endpoint that mints CLI tokens.
+func (s *Server) registerCLIAuth(r chi.Router, auth webui.UIAuth) {
+	guard := s.uiGuard(auth)
+
+	tokenRoute := http.HandlerFunc(s.handleCreateUserToken)
+	cliAuthRoute := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		webui.ServeCLIAuth(w, req, s.currentUserName(req))
+	})
+
+	if guard != nil {
+		r.With(guard).Get("/ui/cli-auth", cliAuthRoute.ServeHTTP)
+		r.With(guard).Post("/api/v1/user-tokens", tokenRoute.ServeHTTP)
+		return
+	}
+	r.Get("/ui/cli-auth", cliAuthRoute.ServeHTTP)
+	r.Post("/api/v1/user-tokens", tokenRoute.ServeHTTP)
 }

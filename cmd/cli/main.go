@@ -36,6 +36,7 @@ func main() {
 		newKeyCmd(),
 		newConfigCmd(),
 		newAuditCmd(),
+		newLoginCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

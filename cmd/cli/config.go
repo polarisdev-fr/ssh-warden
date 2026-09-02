@@ -19,6 +19,9 @@ const defaultAPIURL = "http://localhost:8080"
 type config struct {
 	APIURL      string `yaml:"api_url"`
 	DefaultUser string `yaml:"default_user"`
+	// APIToken is an opaque CLI token (typically obtained via 'warden login')
+	// sent as a Bearer credential to protect mutating API calls.
+	APIToken string `yaml:"api_token,omitempty"`
 }
 
 // configDir returns the directory holding the CLI configuration, falling back
@@ -187,8 +190,10 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 		cfg.APIURL = value
 	case "default_user":
 		cfg.DefaultUser = value
+	case "api_token":
+		cfg.APIToken = value
 	default:
-		return fmt.Errorf("unknown config key %q (valid: api_url, default_user)", key)
+		return fmt.Errorf("unknown config key %q (valid: api_url, default_user, api_token)", key)
 	}
 
 	if err := saveConfig(cfg); err != nil {
@@ -214,5 +219,16 @@ func runConfigShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Config file    : %s\n", path)
 	fmt.Printf("api_url        : %s\n", cfg.APIURL)
 	fmt.Printf("default_user   : %s\n", cfg.DefaultUser)
+	if cfg.APIToken != "" {
+		fmt.Printf("api_token      : %s\n", maskToken(cfg.APIToken))
+	}
 	return nil
+}
+
+// maskToken hides all but the trailing characters of a token for display.
+func maskToken(tok string) string {
+	if len(tok) <= 8 {
+		return "••••"
+	}
+	return "••••" + tok[len(tok)-6:]
 }

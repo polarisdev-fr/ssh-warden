@@ -10,9 +10,10 @@ warden
 ├── revoke           Revoke an active lease immediately
 ├── approve          Approve a pending lease
 ├── reject           Reject a pending lease
+├── login            Authenticate the CLI through the browser
 ├── key add          Register a public key for a user
 ├── config show      Show the current configuration and active config file
-├── config set       Set a configuration value (api_url, default_user)
+├── config set       Set a configuration value (api_url, default_user, api_token)
 └── audit            List authorization audit events
 ```
 
@@ -254,7 +255,58 @@ Error: lease is not pending approval
 
 ---
 
-## 6. `warden key add`
+## 6. `warden login`
+
+Authenticate this CLI against the Warden dashboard. It opens the guarded
+`/ui/cli-auth` approve page in your browser; after you click **Approve CLI
+Access**, the resulting API token is written to the config file so subsequent
+mutating commands (`request`, `revoke`, `approve`, `reject`) are authenticated.
+
+```
+Usage:
+  warden login
+```
+
+### What happens
+
+1. `warden login` starts a temporary local callback listener on
+   `127.0.0.1:<random>` and opens the browser to the configured server's
+   `/ui/cli-auth` page.
+2. You sign in to the dashboard (Basic Auth or OIDC) and approve the device.
+3. The page redirects back to the local callback with a bearer token.
+4. The CLI validates the state nonce, stores the token as `api_token` in
+   `config.yaml` (and `default_user` when a username is returned), and prints a
+   confirmation.
+
+The token expires after 30 days. Re-run `warden login` to refresh it, or
+remove it with:
+
+```sh
+warden config set api_token ""
+```
+
+### Output
+
+```
+Opening browser to authorize SSH-Warden CLI...
+If the browser does not open, visit:
+  https://warden.example.com/ui/cli-auth?callback=http%3A%2F%2F127.0.0.1%3A45123%2Fcallback&state=4f9c...
+Authenticated as alice. Token stored.
+```
+
+If the browser cannot be opened automatically (e.g. headless server), the URL
+is printed so you can open it manually from another machine.
+
+The token can also be supplied via the `WARDEN_API_TOKEN` environment variable,
+which takes precedence over the stored config value:
+
+```sh
+WARDEN_API_TOKEN=<token> warden status
+```
+
+---
+
+## 7. `warden key add`
 
 Register a public key for a user. The user is created on the fly if missing.
 The key is only honored by OpenSSH while the user holds an active lease for the
@@ -311,7 +363,7 @@ Error: failed to read key file /etc/does-not-exist: open /etc/does-not-exist: no
 
 ---
 
-## 7. `warden config`
+## 8. `warden config`
 
 Manage the *local* CLI configuration (`config.yaml` in the user config
 directory) so you do not repeat `--api` and `-u`.
@@ -320,7 +372,7 @@ directory) so you do not repeat `--api` and `-u`.
 Usage:
   warden config [command]
 
-  set      Set a configuration value (api_url, default_user)
+  set      Set a configuration value (api_url, default_user, api_token)
   show     Show the current configuration and active config file
 ```
 
@@ -328,7 +380,7 @@ The file lives at `~/.config/ssh-warden/config.yaml` (Linux) or
 `%APPDATA%\ssh-warden\config.yaml` (Windows). It is created with restrictive
 permissions (`0700` directory, `0600` file).
 
-### 7.1 `warden config show`
+### 8.1 `warden config show`
 
 Display the active config file path and the current values.
 
@@ -343,11 +395,13 @@ Example:
 Config file    : /home/alice/.config/ssh-warden/config.yaml
 api_url        : http://192.168.1.50:8080
 default_user   : alice
+api_token      : ••••b6d394
 ```
 
-On first use (no file yet), it prints the environment-derived defaults.
+The `api_token` value is only shown masked. On first use (no file yet), it
+prints the environment-derived defaults.
 
-### 7.2 `warden config set <key> <value>`
+### 8.2 `warden config set <key> <value>`
 
 Update one key and persist it.
 
@@ -358,6 +412,7 @@ Usage:
 Keys:
   api_url        Base API URL
   default_user   Default username used when -u/--user is omitted
+  api_token      CLI bearer token (set by 'warden login', or manually)
 ```
 
 Examples:
@@ -368,12 +423,15 @@ warden config set api_url http://192.168.1.50:8080
 
 warden config set default_user alice
 # Set default_user = alice
+
+warden config set api_token "wrd_pat_..."
+# Set api_token = wrd_pat_...
 ```
 
 Unknown key (exit 1):
 
 ```
-Error: unknown config key "bogus" (valid: api_url, default_user)
+Error: unknown config key "bogus" (valid: api_url, default_user, api_token)
 ```
 
 ### Resolution precedence
@@ -382,6 +440,9 @@ Error: unknown config key "bogus" (valid: api_url, default_user)
   `http://localhost:8080`.
 - **username**: `-u/--user` flag → `config.yaml` `default_user` → OS
   `$USER`/`$USERNAME`.
+- **api_token**: `WARDEN_API_TOKEN` env → `config.yaml` `api_token`. Used as a
+  bearer credential on mutating calls; not required for read-only `status` /
+  `audit`.
 
 If a username is required but resolves to nothing, the CLI exits with a clear
 hint:
@@ -392,7 +453,7 @@ Error: no username provided: set it with -u/--user or run 'warden config set def
 
 ---
 
-## 8. `warden audit`
+## 9. `warden audit`
 
 List authorization audit events recorded by the API.
 
@@ -447,7 +508,7 @@ No audit events recorded.
 
 ---
 
-## 9. Autocompletion & help
+## 10. Autocompletion & help
 
 Every command supports `--help` / `-h`. Cobra also auto-generates shell
 completion:
@@ -468,6 +529,7 @@ Source the output to enable tab-completion in your shell.
 | Need | Command |
 |------|---------|
 | Get access for 30 min | `warden request -u alice -t srv-prod-01 -d 30m -r "reason"` |
+| Authenticate via browser | `warden login` |
 | See who has access | `warden status` |
 | Kill someone's access | `warden revoke 42` |
 | Approve a pending request | `warden approve 58` |

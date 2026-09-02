@@ -80,6 +80,17 @@ func countAudit(t *testing.T, db *database.DB, action string) int {
 	return n
 }
 
+// cliAuthHeader mints a CLI user token for username and returns an
+// Authorization header set with it, for the mutating lease tests.
+func cliAuthHeader(t *testing.T, db *database.DB, username string) string {
+	t.Helper()
+	raw, err := db.CreateUserToken(username, time.Hour)
+	if err != nil {
+		t.Fatalf("CreateUserToken: %v", err)
+	}
+	return "Bearer " + raw
+}
+
 func TestHealth(t *testing.T) {
 	srv, _ := newTestServer(t)
 	handler := srv.Handler()
@@ -233,6 +244,7 @@ func TestCreateLease(t *testing.T) {
 	body := `{"username":"alice","target_host":"srv-web-01","duration":"30m","reason":"testing"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -256,12 +268,13 @@ func TestCreateLease(t *testing.T) {
 }
 
 func TestCreateLease_InvalidDuration(t *testing.T) {
-	srv, _ := newTestServer(t)
+	srv, db := newTestServer(t)
 	handler := srv.Handler()
 
 	body := `{"username":"alice","duration":"not-a-duration"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -271,12 +284,13 @@ func TestCreateLease_InvalidDuration(t *testing.T) {
 }
 
 func TestCreateLease_UnknownUser(t *testing.T) {
-	srv, _ := newTestServer(t)
+	srv, db := newTestServer(t)
 	handler := srv.Handler()
 
 	body := `{"username":"ghost","target_host":"srv-web-01","duration":"30m"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "ghost"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -296,6 +310,7 @@ func TestCreateLease_RequiresApproval(t *testing.T) {
 	body := `{"username":"alice","target_host":"srv-web-01","duration":"30m","reason":"approval test","requires_approval":true}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -386,6 +401,7 @@ func TestApproveLease(t *testing.T) {
 
 	body := ""
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/leases/%d/approve", lease.ID), strings.NewReader(body))
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -417,6 +433,7 @@ func TestRejectLease(t *testing.T) {
 
 	body := ""
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/leases/%d/reject", lease.ID), strings.NewReader(body))
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "bob"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -447,6 +464,7 @@ func TestApproveAlreadyApprovedLease(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/leases/%d/approve", lease.ID), strings.NewReader(""))
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -456,10 +474,11 @@ func TestApproveAlreadyApprovedLease(t *testing.T) {
 }
 
 func TestApproveNonExistentLease(t *testing.T) {
-	srv, _ := newTestServer(t)
+	srv, db := newTestServer(t)
 	handler := srv.Handler()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/leases/9999/approve", strings.NewReader(""))
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -482,6 +501,9 @@ func TestWebUI(t *testing.T) {
 	ct := rec.Header().Get("Content-Type")
 	if !strings.Contains(ct, "text/html") {
 		t.Errorf("expected text/html content-type, got %q", ct)
+	}
+	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "no-store") {
+		t.Errorf("expected no-store cache-control, got %q", cc)
 	}
 	if !strings.Contains(rec.Body.String(), "SSH-Warden") {
 		t.Error("expected HTML body to contain 'SSH-Warden'")
@@ -549,5 +571,115 @@ func TestWebUI_OnlyOneCredentialDisablesAuth(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "UI_AUTH_ENABLED = false") {
 		t.Error("expected auth flag false when only one credential set")
+	}
+}
+
+func TestCreateLease_RequiresUserToken(t *testing.T) {
+	srv, db := newTestServer(t)
+	handler := srv.Handler()
+
+	if _, err := db.AddSSHKey("alice", validUserKey(t), "dev"); err != nil {
+		t.Fatalf("AddSSHKey: %v", err)
+	}
+	body := `{"username":"alice","target_host":"srv-web-01","duration":"30m"}`
+
+	// No Authorization header -> 401.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", rec.Code)
+	}
+
+	// Garbage token -> 401.
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer not-a-real-token")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 with invalid token, got %d", rec.Code)
+	}
+
+	// Valid token -> 201.
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 with valid token, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCLIAuthPage_UnderUIAuth(t *testing.T) {
+	db, err := database.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	handler := NewServerWithUI(db, webhook.Nil(), "admin", "s3cret").Handler()
+
+	// Unauthenticated -> 401.
+	req := httptest.NewRequest(http.MethodGet, "/ui/cli-auth", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for cli-auth without credentials, got %d", rec.Code)
+	}
+
+	// Token endpoint likewise guarded.
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/user-tokens", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for token endpoint without credentials, got %d", rec.Code)
+	}
+
+	// Authenticated admin can view the approve page.
+	req = httptest.NewRequest(http.MethodGet, "/ui/cli-auth", nil)
+	req.SetBasicAuth("admin", "s3cret")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for cli-auth page, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Authorize SSH-Warden CLI") {
+		t.Error("expected approve page heading in body")
+	}
+	if !strings.Contains(rec.Body.String(), "admin") {
+		t.Error("expected authenticated username injected into page")
+	}
+
+	// Authenticated admin can mint a token.
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/user-tokens", nil)
+	req.SetBasicAuth("admin", "s3cret")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for token endpoint, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Token    string `json:"token"`
+		Username string `json:"username"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+	if resp.Token == "" || resp.Username != "admin" {
+		t.Errorf("unexpected token response: %+v", resp)
+	}
+
+	// Minted token works against protected routes.
+	if _, err := db.AddSSHKey("x", validUserKey(t), "dev"); err != nil {
+		t.Fatalf("AddSSHKey: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/leases", strings.NewReader(`{"username":"x","target_host":"srv-web-01","duration":"30m"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+resp.Token)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 using minted token, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

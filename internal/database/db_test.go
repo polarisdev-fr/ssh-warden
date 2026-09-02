@@ -359,3 +359,47 @@ func TestApproveNonExistentLease(t *testing.T) {
 		t.Errorf("expected ErrLeaseNotFound, got %v", err)
 	}
 }
+
+func TestUserTokenLifecycle(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	raw, err := db.CreateUserToken("alice", time.Hour)
+	if err != nil {
+		t.Fatalf("CreateUserToken: %v", err)
+	}
+	if len(raw) < len(userTokenPrefix)+12 {
+		t.Errorf("token too short: %q", raw)
+	}
+
+	// Valid token resolves to the username.
+	if user, valid := db.ValidateUserToken(raw); !valid || user != "alice" {
+		t.Errorf("expected valid token for alice, got user=%q valid=%v", user, valid)
+	}
+
+	// Unknown / empty / tampered tokens are rejected.
+	if _, valid := db.ValidateUserToken("wrd_pat_tampered"); valid {
+		t.Error("expected invalid for tampered token")
+	}
+	if _, valid := db.ValidateUserToken(""); valid {
+		t.Error("expected invalid for empty token")
+	}
+
+	// Empty username is refused.
+	if _, err := db.CreateUserToken("", time.Hour); err == nil {
+		t.Error("expected error for empty username")
+	}
+}
+
+func TestUserTokenExpired(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	raw, err := db.CreateUserToken("alice", -time.Minute)
+	if err != nil {
+		t.Fatalf("CreateUserToken: %v", err)
+	}
+	if _, valid := db.ValidateUserToken(raw); valid {
+		t.Error("expected expired token to be invalid")
+	}
+}

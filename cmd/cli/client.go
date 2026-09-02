@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"time"
 )
@@ -17,6 +18,8 @@ import (
 type wardenClient struct {
 	base   string
 	client *http.Client
+	// token is an optional CLI user token sent as a Bearer credential.
+	token string
 }
 
 // clientTimeout bounds how long a single API call may take.
@@ -24,6 +27,7 @@ const clientTimeout = 10 * time.Second
 
 // newClient returns a wardenClient pointed at the resolved API base URL,
 // following the priority: --api flag > WARDEN_API_URL > config file > default.
+// It also resolves the CLI user token from WARDEN_API_TOKEN > config file.
 func newClient() (*wardenClient, error) {
 	base, err := resolveAPIURL()
 	if err != nil {
@@ -34,7 +38,28 @@ func newClient() (*wardenClient, error) {
 		client: &http.Client{
 			Timeout: clientTimeout,
 		},
+		token: resolveAPIToken(),
 	}, nil
+}
+
+// resolveAPIToken returns the CLI user token by priority: WARDEN_API_TOKEN
+// env var, then the config file's api_token, else "".
+func resolveAPIToken() string {
+	if tok := os.Getenv("WARDEN_API_TOKEN"); tok != "" {
+		return tok
+	}
+	cfg, err := loadConfig()
+	if err != nil {
+		return ""
+	}
+	return cfg.APIToken
+}
+
+// applyAuth attaches the Bearer token to the request when one is configured.
+func (c *wardenClient) applyAuth(req *http.Request) {
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 }
 
 // url joins the base URL with one or more path segments.
@@ -78,6 +103,7 @@ func (c *wardenClient) get(cmdPath string, params url.Values) ([]byte, int, erro
 	if err != nil {
 		return nil, 0, fmt.Errorf("request creation error: %w", err)
 	}
+	c.applyAuth(req)
 	return c.do(req)
 }
 
@@ -107,6 +133,7 @@ func (c *wardenClient) post(cmdPath string, payload any) ([]byte, int, error) {
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	c.applyAuth(req)
 	return c.do(req)
 }
 
@@ -121,6 +148,7 @@ func (c *wardenClient) delete(cmdPath string) ([]byte, int, error) {
 	if err != nil {
 		return nil, 0, fmt.Errorf("request creation error: %w", err)
 	}
+	c.applyAuth(req)
 	return c.do(req)
 }
 

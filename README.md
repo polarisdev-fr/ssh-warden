@@ -105,14 +105,16 @@ The server listens on `:8080` and exposes:
 | ------ | -------------------------- | --------------------------------- |
 | GET    | `/api/v1/keys/{user}`      | Public keys for a user (Bearer)   |
 | GET    | `/api/v1/leases`           | List active leases                |
-| POST   | `/api/v1/leases`           | Create a lease                    |
-| DELETE | `/api/v1/leases/{id}`      | Revoke a lease                    |
+| POST   | `/api/v1/leases`           | Create a lease (user token)       |
+| DELETE | `/api/v1/leases/{id}`      | Revoke a lease (user token)       |
 | GET    | `/api/v1/leases/pending`   | List pending approval leases      |
-| POST   | `/api/v1/leases/{id}/approve` | Approve a pending lease        |
-| POST   | `/api/v1/leases/{id}/reject`  | Reject a pending lease         |
+| POST   | `/api/v1/leases/{id}/approve` | Approve a pending lease (user token) |
+| POST   | `/api/v1/leases/{id}/reject`  | Reject a pending lease (user token) |
 | GET    | `/api/v1/audit`            | Audit log                         |
+| POST   | `/api/v1/user-tokens`      | Mint a CLI user token (UI auth)   |
 | GET    | `/api/v1/system`           | Server info (auth mode, mTLS, DB) |
 | GET    | `/ui`                      | Web UI dashboard                  |
+| GET    | `/ui/cli-auth`             | CLI approve page (UI auth)        |
 
 ### Web UI dashboard
 
@@ -218,6 +220,19 @@ warden approve 58
 # Reject a pending lease (denies SSH access)
 warden reject 59
 ```
+
+Since `v0.3.2`, mutating commands are authenticated with a **CLI user token**
+obtained by approving access in the browser. Run it once per client:
+
+```sh
+# Opens the browser; sign in to the dashboard and click "Approve CLI Access"
+warden login
+```
+
+The token is stored in the CLI config (`api_token`) and expires after 30 days
+(re-run `warden login` to refresh it). You can also supply it via the
+`WARDEN_API_TOKEN` environment variable, which takes precedence. Read-only
+commands (`status`, `audit`) do not require a token.
 
 Pending leases are created via the API by passing `"requires_approval": true`
 in the JSON body of `POST /api/v1/leases`. The CLI `warden approve` and

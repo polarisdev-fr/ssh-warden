@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Authorize SSH-Warden CLI</title>
+<style>
+  :root { --bg:#0d1117; --surface:#161b22; --border:#30363d; --fg:#e6edf3; --dim:#8b949e; --green:#3fb950; --blue:#58a6ff; --red:#f85149; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--fg); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; line-height:1.5; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px; width:100%; max-width:380px; text-align:center; }
+  .logo { width:44px; height:44px; border-radius:10px; background:var(--blue); color:#000; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; }
+  .logo svg { width:24px; height:24px; }
+  h1 { font-size:18px; font-weight:700; margin-bottom:6px; }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:20px; }
+  .user { display:inline-flex; align-items:center; gap:8px; background:rgba(88,166,255,.12); border:1px solid rgba(88,166,255,.4); color:var(--blue); border-radius:16px; padding:6px 14px; font-size:13px; font-weight:600; margin-bottom:22px; }
+  .btn { width:100%; border:none; background:var(--green); color:#000; padding:12px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; transition:opacity .15s; }
+  .btn:hover { opacity:.85; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .err { color:var(--red); font-size:13px; margin-top:14px; display:none; }
+  .err.show { display:block; }
+  .note { color:var(--dim); font-size:11px; margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+  <h1>Authorize SSH-Warden CLI</h1>
+  <p class="sub">Approve this device to manage temporary SSH access on your behalf.</p>
+  <span class="user" id="user-badge">&#128100; <span id="username">__USERNAME__</span></span>
+  <button class="btn" id="approve-btn" onclick="approve()">Approve CLI Access</button>
+  <div class="err" id="err"></div>
+  <p class="note">You can revoke this approval at any time.</p>
+</div>
+<script>
+const params = new URLSearchParams(window.location.search);
+const callback = params.get('callback') || '';
+const state = params.get('state') || '';
+
+function approve() {
+  const btn = document.getElementById('approve-btn');
+  btn.disabled = true;
+  btn.textContent = 'Authorizing…';
+  fetch('/api/v1/user-tokens', { method: 'POST' })
+    .then(r => {
+      if (!r.ok) throw new Error('Request failed (' + r.status + ')');
+      return r.json();
+    })
+    .then(data => {
+      const url = new URL(callback);
+      url.searchParams.set('token', data.token);
+      url.searchParams.set('user', data.username);
+      if (state) url.searchParams.set('state', state);
+      window.location.href = url.toString();
+    })
+    .catch(e => {
+      btn.disabled = false;
+      btn.textContent = 'Approve CLI Access';
+      document.getElementById('err').textContent = e.message;
+      document.getElementById('err').classList.add('show');
+    });
+}
+</script>
+</body>
+</html>

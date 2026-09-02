@@ -35,11 +35,14 @@ type createLeaseRequest struct {
 //	DELETE /api/v1/leases/{id}           revoke a lease
 func (s *Server) registerLeasesRoutes(r chi.Router) {
 	r.Get("/api/v1/leases", s.handleListLeases)
-	r.Post("/api/v1/leases", s.handleCreateLease)
 	r.Get("/api/v1/leases/pending", s.handleListPendingLeases)
-	r.Post("/api/v1/leases/{id}/approve", s.handleApproveLease)
-	r.Post("/api/v1/leases/{id}/reject", s.handleRejectLease)
-	r.Delete("/api/v1/leases/{id}", s.handleRevokeLease)
+
+	// Mutating lease routes require the CLI user token (Bearer). The public
+	// key-fetch endpoint for host helpers keeps its own Host Token auth.
+	r.With(s.userTokenAuth).Post("/api/v1/leases", s.handleCreateLease)
+	r.With(s.userTokenAuth).Post("/api/v1/leases/{id}/approve", s.handleApproveLease)
+	r.With(s.userTokenAuth).Post("/api/v1/leases/{id}/reject", s.handleRejectLease)
+	r.With(s.userTokenAuth).Delete("/api/v1/leases/{id}", s.handleRevokeLease)
 }
 
 // handleListLeases returns approved active leases, optionally filtered by the

@@ -87,6 +87,14 @@ func InitDB(dbPath string) (*DB, error) {
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS user_tokens (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT NOT NULL,
+		token_hash TEXT UNIQUE NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME NOT NULL
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_username ON audit_logs (username);
 	`
