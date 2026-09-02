@@ -44,9 +44,9 @@ ACTION="${1:-install}"
 
 # --- Helpers -----------------------------------------------------------
 
-info()  { printf "\033[1;34m[ssh-warden]\033[0m %s\n" "$*"; }
-ok()    { printf "\033[1;32m[ssh-warden]\033[0m %s\n" "$*"; }
-warn()  { printf "\033[1;33m[ssh-warden]\033[0m %s\n" "$*"; }
+info()  { printf "\033[1;34m[ssh-warden]\033[0m %s\n" "$*" >&2; }
+ok()    { printf "\033[1;32m[ssh-warden]\033[0m %s\n" "$*" >&2; }
+warn()  { printf "\033[1;33m[ssh-warden]\033[0m %s\n" "$*" >&2; }
 die()   { printf "\033[1;31m[ssh-warden]\033[0m %s\n" "$*" >&2; exit 1; }
 
 need() {
