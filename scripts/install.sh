@@ -67,6 +67,7 @@ if [[ "$FROM_SOURCE" == "1" ]]; then
     git clone --depth 1 --branch "${VERSION}" "https://github.com/${REPO}.git" "${TMPDIR}/src"
     cd "${TMPDIR}/src"
     CGO_ENABLED=0 go build -ldflags="-s -w" -o "${TMPDIR}/ssh-warden-server" ./cmd/server
+    SERVER_BIN="${TMPDIR}/ssh-warden-server"
 else
     info "Downloading release ${VERSION}..."
     ARCH=$(uname -m)
@@ -100,16 +101,12 @@ else
     if [[ -z "$SERVER_BIN" ]]; then
         die "Could not find ssh-warden-server in the release archive."
     fi
-    # Only move if source and target differ (same file = already correct).
-    if [[ "$SERVER_BIN" != "${TMPDIR}/ssh-warden-server" ]]; then
-        mv "$SERVER_BIN" "${TMPDIR}/ssh-warden-server"
-    fi
 fi
 
 # --- Install binary ----------------------------------------------------
 
 info "Installing server binary to ${INSTALL_DIR}..."
-install -o root -g root -m 755 "${TMPDIR}/ssh-warden-server" "${INSTALL_DIR}/ssh-warden-server"
+install -o root -g root -m 755 "${SERVER_BIN}" "${INSTALL_DIR}/ssh-warden-server"
 ok "Binary installed: ${INSTALL_DIR}/ssh-warden-server"
 
 # --- Create system user ------------------------------------------------
