@@ -9,6 +9,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/polarisdev-fr/ssh-warden/internal/database"
+	"github.com/polarisdev-fr/ssh-warden/internal/oidc"
 	"github.com/polarisdev-fr/ssh-warden/internal/webhook"
 	"github.com/polarisdev-fr/ssh-warden/internal/webui"
 )
@@ -19,11 +20,12 @@ type Server struct {
 	db       *database.DB
 	notifier webhook.Notifier
 	// uiUser and uiPassword, when both non-empty, are the Basic Auth
-	// credentials required to access the /ui dashboard. When either is empty
-	// the dashboard is served without authentication and the UI shows a
-	// warning banner.
+	// credentials required to access the /ui dashboard when OIDC is disabled.
 	uiUser     string
 	uiPassword string
+	// oidcProvider, when non-nil, enables OpenID Connect authentication and
+	// takes precedence over Basic Auth.
+	oidcProvider *oidc.Provider
 }
 
 // NewServer creates an API Server backed by the given database and notifier.
@@ -47,6 +49,14 @@ func NewServerWithUI(db *database.DB, notifier webhook.Notifier, uiUser, uiPassw
 	}
 }
 
+// WithOIDC enables OpenID Connect authentication for the /ui dashboard,
+// taking precedence over Basic Auth. When the provider is non-nil, requests
+// to /ui are guarded by its session middleware and /auth/* routes are mounted.
+func (s *Server) WithOIDC(provider *oidc.Provider) *Server {
+	s.oidcProvider = provider
+	return s
+}
+
 // Handler constructs and returns the fully-configured HTTP router, including
 // middleware and all routes. It is safe to call once and reuse.
 func (s *Server) Handler() http.Handler {
@@ -62,7 +72,32 @@ func (s *Server) Handler() http.Handler {
 	s.registerKeysRoutes(r)
 	s.registerLeasesRoutes(r)
 	s.registerAuditRoutes(r)
-	webui.RegisterUIRoutes(r, s.uiUser, s.uiPassword)
+	s.registerUIRoutes(r)
 
 	return r
+}
+
+func (s *Server) registerUIRoutes(r chi.Router) {
+	auth := webui.UIAuth{Enabled: false}
+
+	if pr := s.oidcProvider; pr != nil {
+		r.Get("/auth/login", pr.HandleLogin)
+		r.Get("/auth/callback", pr.HandleCallback)
+		r.Get("/auth/logout", pr.HandleLogout)
+		auth.Enabled = true
+		auth.Guard = pr.RequireSession
+		auth.Identity = func(r *http.Request) string {
+			id, err := pr.CurrentUser(r)
+			if err != nil {
+				return ""
+			}
+			return id.Username
+		}
+	} else {
+		auth.Enabled = s.uiUser != "" && s.uiPassword != ""
+		auth.BasicUser = s.uiUser
+		auth.BasicPassword = s.uiPassword
+	}
+
+	webui.RegisterUIRoutes(r, auth)
 }

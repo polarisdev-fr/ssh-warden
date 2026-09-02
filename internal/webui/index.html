@@ -19,6 +19,10 @@
   .brand { display:flex; align-items:center; gap:10px; font-size:20px; font-weight:600; }
   .brand .logo { color:var(--blue); }
   .header-actions { display:flex; align-items:center; gap:10px; }
+  .user-bar { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--dim); }
+  .user-bar .username { color:var(--fg); font-weight:600; }
+  .user-bar .logout { color:var(--red); text-decoration:none; font-weight:600; }
+  .user-bar .logout:hover { text-decoration:underline; }
   .refresh-btn { background:var(--surface); color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s; }
   .refresh-btn:hover { background:#21262d; }
   .refresh-btn:disabled, .refresh-btn.spinning { opacity:.6; cursor:default; }
@@ -77,11 +81,12 @@
 </head>
 <body>
 
-<div id="warning-banner" class="banner">⚠ UI is running without authentication. Set WARDEN_UI_USER &amp; WARDEN_UI_PASSWORD to secure it.</div>
+<div id="warning-banner" class="banner">⚠ UI is running without authentication. Set WARDEN_UI_USER &amp; WARDEN_UI_PASSWORD or enable OIDC (WARDEN_OIDC_ENABLED=true) to secure it.</div>
 
 <div class="header">
   <div class="brand"><span class="logo">&#9776;</span> <span>SSH-Warden</span>&nbsp;Dashboard</div>
   <div class="header-actions">
+    <span class="user-bar">__USER_BAR__</span>
     <span id="updated-at" class="muted" style="color:var(--dim);font-size:12px;"></span>
     <button id="refresh-btn" class="refresh-btn" onclick="manualRefresh()">&#10227; Refresh</button>
   </div>
@@ -106,7 +111,7 @@
 
 <script>
 // UI_AUTH_ENABLED is replaced at serve time with 'true' or 'false' depending
-// on whether the server configured UI Basic Auth credentials.
+// on whether the server configured UI authentication (Basic Auth or OIDC).
 const UI_AUTH_ENABLED = __AUTH_ENABLED__;
 
 function toast(msg, ok) {

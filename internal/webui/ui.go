@@ -12,21 +12,39 @@ import (
 //go:embed index.html
 var static embed.FS
 
-// RegisterUIRoutes registers GET /ui (the dashboard) on the router. When both
-// uiUser and uiPassword are non-empty the route is protected by HTTP Basic
-// Auth; otherwise the dashboard is served unauthenticated (the HTML itself
-// shows a warning banner in that case).
-func RegisterUIRoutes(r chi.Router, uiUser, uiPassword string) {
-	authEnabled := uiUser != "" && uiPassword != ""
-	serve := func(w http.ResponseWriter, req *http.Request) {
-		serveIndex(w, req, authEnabled)
-	}
+// UIAuth describes the authentication applied to the /ui dashboard and how to
+// report the current user to the page header.
+type UIAuth struct {
+	// Enabled reports whether the dashboard requires authentication.
+	Enabled bool
+	// Guard is optional. When non-nil it wraps /ui with a middleware that
+	// redirects unauthenticated requests (OIDC). When nil, Basic Auth is used
+	// if BasicUser/BasicPassword are set, otherwise the UI is open.
+	Guard func(http.Handler) http.Handler
+	// BasicUser/BasicPassword, when both non-empty and Guard is nil, enable
+	// HTTP Basic Auth (fallback used when OIDC is off).
+	BasicUser     string
+	BasicPassword string
+	// Identity returns the authenticated user ("" when anonymous).
+	Identity func(*http.Request) string
+}
 
-	if authEnabled {
-		r.With(basicAuth(uiUser, uiPassword)).Get("/ui", serve)
-		return
+// RegisterUIRoutes registers GET /ui (and its assets) on the router, applying
+// the authentication configured in auth. The returned middleware ordering is:
+// Guard (OIDC) if set, else Basic Auth if BasicUser is set, else open.
+func RegisterUIRoutes(r chi.Router, auth UIAuth) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		serveIndex(w, req, auth)
+	})
+
+	switch {
+	case auth.Guard != nil:
+		r.With(auth.Guard).Get("/ui", handler.ServeHTTP)
+	case auth.BasicUser != "" && auth.BasicPassword != "":
+		r.With(basicAuth(auth.BasicUser, auth.BasicPassword)).Get("/ui", handler.ServeHTTP)
+	default:
+		r.Get("/ui", handler.ServeHTTP)
 	}
-	r.Get("/ui", serve)
 }
 
 // basicAuth returns a chi middleware that enforces HTTP Basic Auth against
@@ -51,20 +69,32 @@ func basicAuth(user, password string) func(http.Handler) http.Handler {
 	}
 }
 
-// serveIndex reads, injects the auth flag placeholder, and serves the embedded
-// HTML dashboard.
-func serveIndex(w http.ResponseWriter, r *http.Request, authEnabled bool) {
+// serveIndex reads, injects the auth flag, user identity and logout link, then
+// serves the embedded HTML dashboard.
+func serveIndex(w http.ResponseWriter, r *http.Request, auth UIAuth) {
 	data, err := static.ReadFile("index.html")
 	if err != nil {
 		http.Error(w, "ui unavailable", http.StatusInternalServerError)
 		return
 	}
 
-	flag := "false"
-	if authEnabled {
-		flag = "true"
+	enabled := "false"
+	userBar := ""
+	if auth.Enabled {
+		enabled = "true"
 	}
-	body := strings.ReplaceAll(string(data), "__AUTH_ENABLED__", flag)
+	user := ""
+	if auth.Identity != nil {
+		user = auth.Identity(r)
+	}
+	if user != "" {
+		userBar = `<span class="username">` + strings.ReplaceAll(user, "&", "&amp;") +
+			`</span> <a href="/auth/logout" class="logout">Déconnexion</a>`
+	}
+
+	body := string(data)
+	body = strings.ReplaceAll(body, "__AUTH_ENABLED__", enabled)
+	body = strings.ReplaceAll(body, "__USER_BAR__", userBar)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(body))

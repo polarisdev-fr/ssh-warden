@@ -282,7 +282,81 @@ server {
 
 ---
 
-## 8. Webhook notifications
+## 8. OpenID Connect (OIDC) dashboard authentication
+
+By default the `/ui` dashboard is protected by HTTP **Basic Auth**
+(`WARDEN_UI_USER` / `WARDEN_UI_PASSWORD`) or left open with a warning banner.
+For enterprise single sign-on you can instead protect it with **OpenID
+Connect** (Authentik, Keycloak, Azure AD, Google, Discord, etc.). When OIDC is
+enabled it **takes precedence over Basic Auth**.
+
+### How it works
+
+OIDC uses the **authorization-code flow**:
+
+1. An unauthenticated visitor to `/ui` is redirected to `/auth/login`.
+2. `/auth/login` generates a random `state`, stores it in a short-lived
+   `HttpOnly` + `SameSite=Lax` cookie, and redirects to the identity provider.
+3. The provider authenticates the user and redirects back to
+   `/auth/callback` with a `code`.
+4. `/auth/callback` verifies the `state` cookie (CSRF protection), exchanges
+   the `code` for tokens, verifies the ID token's signature/issuer/audience
+   against the provider's JWKS, and extracts the identity.
+5. A signed `warden_session` cookie (`HttpOnly` + `SameSite=Lax`, HMAC-SHA256)
+   is set, and the user lands on `/ui`.
+6. `GET /auth/logout` clears the session cookie.
+
+The session cookie is **HMAC-signed**, not merely base64-encoded: any tampering
+with the payload invalidates the signature. It is only ever decoded server-side.
+
+### Environment variables
+
+| Variable                     | Description                                                        |
+|------------------------------|--------------------------------------------------------------------|
+| `WARDEN_OIDC_ENABLED`        | `"true"`/`"false"`, default `false`.                               |
+| `WARDEN_OIDC_ISSUER_URL`     | OIDC issuer, e.g. `https://auth.example.com/application/o/warden/`.|
+| `WARDEN_OIDC_CLIENT_ID`      | OIDC client ID.                                                    |
+| `WARDEN_OIDC_CLIENT_SECRET`  | OIDC client secret.                                                |
+| `WARDEN_OIDC_REDIRECT_URL`   | Callback URL registered with the IdP (e.g. `http://localhost:8080/auth/callback`). |
+| `WARDEN_SESSION_SECRET`      | Random key used to sign session cookies (≥32 bytes).              |
+
+### Security notes
+
+- **`WARDEN_SESSION_SECRET` is the crown jewel.** Anyone holding it can forge
+  sessions. Generate it with a CSPRNG and store it in a secret manager
+  (`openssl rand -base64 32`).
+- Session cookies are flagged `Secure` **only when the server is running TLS**
+  (native mTLS or with `WARDEN_TLS_CERT`/`WARDEN_TLS_KEY`). On a plain-HTTP LAN
+  deployment they are sent without the `Secure` flag so the flow works — make
+  sure that network is trusted, or run behind the reverse proxy from section 7.
+- Always register the exact `WARDEN_OIDC_REDIRECT_URL` in the IdP; mismatches
+  cause the exchange to fail by design.
+- The `state` cookie is single-use and enforced server-side (CSRF).
+
+### Authentik example
+
+Create an **OIDC provider** and application in Authentik and note the issuer,
+client ID and client secret. Then set a `warden` outpost to expose them. On
+the Warden server (e.g. via the systemd unit) add:
+
+```ini
+# /etc/ssh-warden/env (or the unit Environment= lines)
+WARDEN_OIDC_ENABLED=true
+WARDEN_OIDC_ISSUER_URL=https://auth.example.com/application/o/ssh-warden/
+WARDEN_OIDC_CLIENT_ID=ssh-warden-client
+WARDEN_OIDC_CLIENT_SECRET=change-me
+WARDEN_OIDC_REDIRECT_URL=https://warden.example.com/auth/callback
+WARDEN_SESSION_SECRET=$(openssl rand -base64 32)
+```
+
+In the Authentik provider, set **Redirect URIs/Origins** to the same
+`WARDEN_OIDC_REDIRECT_URL`. After restarting the server, visiting `/ui`
+redirects to Authentik's login page; on success the dashboard shows
+**"Connecté en tant que <user> | Déconnexion"** in the header.
+
+---
+
+## 9. Webhook notifications
 
 Webhooks can leak metadata to the receiving service. Decide consciously whether
 you want the audited decisions (usernames, host names, IP addresses) to leave
@@ -296,7 +370,7 @@ your network:
 
 ---
 
-## 9. Summary checklist
+## 10. Summary checklist
 
 - [ ] Server runs as a dedicated non-login user; DB files not world-readable.
 - [ ] API bound to loopback; TLS terminated by a reverse proxy or mTLS enabled.
@@ -308,3 +382,6 @@ your network:
 - [ ] Audit trail reviewed (via `warden audit`) as part of change management.
 - [ ] Webhook endpoint (if used) is HTTPS and its metadata is acceptable to
       share with the webhook provider.
+- [ ] If OIDC is enabled: `WARDEN_SESSION_SECRET` is a CSPRNG secret in a
+      secret manager, the redirect URL is exact-match in the IdP, and the
+      dashboard is served over TLS (or a trusted LAN).

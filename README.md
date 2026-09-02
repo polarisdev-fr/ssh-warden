@@ -141,6 +141,30 @@ WARDEN_UI_USER=admin WARDEN_UI_PASSWORD=change-me go run ./cmd/server
 When both variables are set, the `/ui` route requires HTTP Basic Auth and the
 warning banner disappears.
 
+#### OpenID Connect (OIDC) single sign-on
+
+Instead of Basic Auth you can protect the dashboard with **OpenID Connect**
+(Authentik, Keycloak, Azure AD, Google, Discord, …). OIDC takes precedence over
+Basic Auth when enabled:
+
+```sh
+WARDEN_OIDC_ENABLED=true \
+WARDEN_OIDC_ISSUER_URL=https://auth.example.com/application/o/ssh-warden/ \
+WARDEN_OIDC_CLIENT_ID=ssh-warden-client \
+WARDEN_OIDC_CLIENT_SECRET=change-me \
+WARDEN_OIDC_REDIRECT_URL=https://warden.example.com/auth/callback \
+WARDEN_SESSION_SECRET=$(openssl rand -base64 32) \
+go run ./cmd/server
+```
+
+Unauthenticated visitors to `/ui` are redirected to `GET /auth/login`, which
+redirects to the identity provider. The callback (`/auth/callback`) verifies
+the CSRF `state` cookie, exchanges the code, verifies the ID token, and sets a
+signed `warden_session` (`HttpOnly`, `SameSite=Lax`). `GET /auth/logout`
+clears it. The dashboard then shows **"Connecté en tant que <user> |
+Déconnexion"** in the header. See `docs/security.md` § 8 for details and a
+default caveat about the `Secure` cookie flag on plain HTTP.
+
 ### OpenSSH host
 
 Install the helper and its config, then point `AuthorizedKeysCommand` at it in
@@ -276,6 +300,12 @@ effective username is resolved from `-u/--user`, then the config
 | `WARDEN_TLS_CA_CERT`  | CA certificate file path — enables mTLS, requiring client certs (optional).|
 | `WARDEN_UI_USER`      | Basic Auth username for the `/ui` dashboard (optional).                   |
 | `WARDEN_UI_PASSWORD`  | Basic Auth password for the `/ui` dashboard (optional).                   |
+| `WARDEN_OIDC_ENABLED` | `"true"`/`"false"` — enable OpenID Connect auth for `/ui` (optional).     |
+| `WARDEN_OIDC_ISSUER_URL` | OIDC issuer URL, e.g. `https://auth.example.com/application/o/warden/`. |
+| `WARDEN_OIDC_CLIENT_ID` | OIDC client ID (required when OIDC enabled).                           |
+| `WARDEN_OIDC_CLIENT_SECRET` | OIDC client secret (required when OIDC enabled).                  |
+| `WARDEN_OIDC_REDIRECT_URL` | OIDC callback URL registered with the IdP (e.g. `.../auth/callback`). |
+| `WARDEN_SESSION_SECRET` | Random key (≥32 bytes) that signs `warden_session` cookies (required when OIDC enabled). |
 
 ### Webhook Notifications
 

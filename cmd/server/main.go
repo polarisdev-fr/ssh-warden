@@ -14,6 +14,7 @@ import (
 
 	"github.com/polarisdev-fr/ssh-warden/internal/api"
 	"github.com/polarisdev-fr/ssh-warden/internal/database"
+	"github.com/polarisdev-fr/ssh-warden/internal/oidc"
 	"github.com/polarisdev-fr/ssh-warden/internal/webhook"
 )
 
@@ -38,24 +39,39 @@ func run() error {
 		log.Printf("seed warning: %v", err)
 	}
 
-	srv := &http.Server{
-		Addr: defaultAddr,
-		Handler: api.NewServerWithUI(
-			db,
-			webhook.New(os.Getenv("WARDEN_WEBHOOK_URL")),
-			os.Getenv("WARDEN_UI_USER"),
-			os.Getenv("WARDEN_UI_PASSWORD"),
-		).Handler(),
-	}
-
 	// Optional mTLS: when WARDEN_TLS_CERT and WARDEN_TLS_KEY are set the
 	// server listens on HTTPS. When WARDEN_TLS_CA_CERT is additionally set,
 	// client certificates signed by that CA are required.
 	tlsCertFile := os.Getenv("WARDEN_TLS_CERT")
 	tlsKeyFile := os.Getenv("WARDEN_TLS_KEY")
 	tlsCACertFile := os.Getenv("WARDEN_TLS_CA_CERT")
+	tlsEnabled := tlsCertFile != "" && tlsKeyFile != ""
 
-	if tlsCertFile != "" && tlsKeyFile != "" {
+	apiServer := api.NewServerWithUI(
+		db,
+		webhook.New(os.Getenv("WARDEN_WEBHOOK_URL")),
+		os.Getenv("WARDEN_UI_USER"),
+		os.Getenv("WARDEN_UI_PASSWORD"),
+	)
+
+	// Optional OpenID Connect auth for the dashboard. When enabled it takes
+	// precedence over Basic Auth and mounts /auth/login, /auth/callback and
+	// /auth/logout.
+	if os.Getenv("WARDEN_OIDC_ENABLED") == "true" {
+		pr, err := newOIDCProvider(tlsEnabled)
+		if err != nil {
+			return err
+		}
+		apiServer.WithOIDC(pr)
+		log.Printf("OIDC auth enabled for /ui (issuer %s)", os.Getenv("WARDEN_OIDC_ISSUER_URL"))
+	}
+
+	srv := &http.Server{
+		Addr:    defaultAddr,
+		Handler: apiServer.Handler(),
+	}
+
+	if tlsEnabled {
 		tlsCfg := &tls.Config{
 			MinVersion: tls.VersionTLS13,
 		}
@@ -114,4 +130,37 @@ func run() error {
 	}
 	log.Println("SSH-Warden API stopped")
 	return nil
+}
+
+// newOIDCProvider builds and verifies the OpenID Connect provider from the
+// WARDEN_OIDC_* environment variables. It performs discovery against the
+// issuer at startup. sessionSecret must be non-empty.
+func newOIDCProvider(tlsEnabled bool) (*oidc.Provider, error) {
+	issuer := os.Getenv("WARDEN_OIDC_ISSUER_URL")
+	clientID := os.Getenv("WARDEN_OIDC_CLIENT_ID")
+	clientSecret := os.Getenv("WARDEN_OIDC_CLIENT_SECRET")
+	redirectURL := os.Getenv("WARDEN_OIDC_REDIRECT_URL")
+	secret := os.Getenv("WARDEN_SESSION_SECRET")
+
+	if issuer == "" || clientID == "" || clientSecret == "" || redirectURL == "" || secret == "" {
+		return nil, fmt.Errorf(
+			"WARDEN_OIDC_ENABLED=true requires WARDEN_OIDC_ISSUER_URL, WARDEN_OIDC_CLIENT_ID, " +
+				"WARDEN_OIDC_CLIENT_SECRET, WARDEN_OIDC_REDIRECT_URL and WARDEN_SESSION_SECRET to be set",
+		)
+	}
+
+	// Session cookies are flagged Secure only when serving over TLS.
+	sess, err := oidc.NewSession(secret, oidc.WithSecure(tlsEnabled))
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return oidc.NewProvider(ctx, oidc.ProviderConfig{
+		IssuerURL:    issuer,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  redirectURL,
+	}, sess)
 }
