@@ -431,44 +431,59 @@ function renderOverview(o) {
 }
 
 // Build a stacked bar chart (granted vs denied) as inline SVG with no
-// dependencies. Uses a viewBox sized to the 7-day bucket count.
+// dependencies. Uses a viewBox sized to the 7-day bucket count. Handles empty
+// or all-zero data gracefully instead of rendering a blank box.
 function activityChart(points) {
   const W = 640, H = 220, PAD = 28;
   const innerW = W - PAD * 2, innerH = H - PAD * 2;
-  const n = points.length || 1;
+  const pts = Array.isArray(points) ? points : [];
+  const n = pts.length;
+  if (!n) {
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="No activity data">'
+      + '<text x="' + W / 2 + '" y="' + H / 2 + '" text-anchor="middle" font-size="13" fill="#8b949e">No activity recorded yet.</text>'
+      + '</svg>';
+  }
   const gap = 14;
   const slot = innerW / n;
   const barW = Math.max(6, slot - gap);
-  const max = Math.max(1, ...points.map(p => Math.max(p.granted, p.denied)));
+  // Scale so the tallest day sets the y-max; a floor of 1 avoids /0 and keeps
+  // a baseline even when all values are zero.
+  const max = Math.max(1, ...pts.map(p => Math.max(p.granted || 0, p.denied || 0)));
   const gridLines = 4;
 
   let labels = '';
   for (let i = 0; i < n; i++) {
     const x = PAD + slot * i + slot / 2;
     labels += '<text x="' + x + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="#8b949e">'
-      + esc(points[i].bucket) + '</text>';
+      + esc(pts[i].bucket || '') + '</text>';
   }
 
-  let grid = '', yLabel = 0;
+  let grid = '';
   for (let i = 0; i <= gridLines; i++) {
     const y = PAD + innerH - (innerH * i / gridLines);
     grid += '<line x1="' + PAD + '" y1="' + y + '" x2="' + (W - PAD) + '" y2="' + y + '" stroke="#30363d" stroke-width="1" stroke-dasharray="3 3"/>';
+    // Round the y-axis label, but always show the axis baseline value.
     const yv = Math.round(max * i / gridLines);
-    if (i === 0) { yLabel = yv; }
     grid += '<text x="8" y="' + (y + 3) + '" font-size="9" fill="#6e7681">' + yv + '</text>';
   }
 
-  let bars = '', i = 0;
-  for (const p of points) {
+  let bars = '';
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    const granted = p.granted || 0;
+    const denied = p.denied || 0;
+    if (granted === 0 && denied === 0) continue; // skip empty days
     const x = PAD + slot * i + gap / 2;
-    const gH = (p.granted / max) * innerH;
-    const dH = (p.denied / max) * innerH;
     const yBase = PAD + innerH;
-    if (p.denied > 0)
-      bars += '<rect x="' + (x + barW / 2 + 2) + '" y="' + (yBase - dH) + '" width="' + (barW / 2 - 2) + '" height="' + dH + '" fill="#f85149"/>';
-    if (p.granted > 0)
-      bars += '<rect x="' + x + '" y="' + (yBase - gH) + '" width="' + (barW / 2 - 2) + '" height="' + gH + '" fill="#3fb950"/>';
-    i++;
+    const halfW = barW / 2 - 2;
+    if (denied > 0) {
+      const dH = (denied / max) * innerH;
+      bars += '<rect x="' + (x + halfW + 4) + '" y="' + (yBase - dH) + '" width="' + halfW + '" height="' + dH + '" fill="#f85149"/>';
+    }
+    if (granted > 0) {
+      const gH = (granted / max) * innerH;
+      bars += '<rect x="' + x + '" y="' + (yBase - gH) + '" width="' + halfW + '" height="' + gH + '" fill="#3fb950"/>';
+    }
   }
 
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Granted and denied activity over the last ' + n + ' days">'
