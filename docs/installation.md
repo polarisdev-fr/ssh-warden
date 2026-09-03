@@ -72,75 +72,100 @@ This guide covers two sides of the deployment:
 
 ### Method A — Docker / Docker Compose
 
-The provided `Dockerfile` builds a scratch- or Alpine-based image containing
-the server binary. Because the binary is pure Go (no CGO), you can ship a
-minimal final stage.
+Pre-built images are published to **Docker Hub** under
+`polarisdev/ssh-warden` (or your own namespace). Each version tag `vX.Y.Z`
+is built for **linux/amd64 and linux/arm64** and pushed both as
+`:vX.Y.Z` and `:latest` (see the `docker.yml` GitHub workflow).
 
-```dockerfile
-# --- build stage ---
-FROM golang:1.27 AS build
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /warden-server ./cmd/server
+The official `Dockerfile` is a multi-stage build:
+- **build** — `CGO_ENABLED=0` Go build (the server is pure Go — `modernc.org/sqlite`
+  is a pure-Go driver — so it links a fully static binary; the version is
+  stamped in via `-ldflags`).
+- **runtime** — `distroless/static-debian12:nonroot`: a hardened base with **no
+  shell, no package manager**, and a non-root default user. It ships only the
+  server binary and a tiny `warden-healthcheck` probe (distroless has no
+  `curl`), used as the container `HEALTHCHECK`.
 
-# --- runtime stage ---
-FROM scratch
-COPY --from=build /warden-server /warden-server
-VOLUME ["/data"]
-EXPOSE 8080
-ENV WARDEN_DB_PATH=/data/warden.db
-ENTRYPOINT ["/warden-server"]
-```
+The SQLite database lives in the container working directory `/data` and is
+persisted on a mounted volume. The server listens on `WARDEN_PORT` (default
+`8080`).
 
-> Note: if the server does not yet read `WARDEN_DB_PATH`, use a fixed database
-> path via the working directory instead (see the systemd method below). The
-> important principle is that the database lives on a persistent, volume-mapped
-> location.
-
-A Compose manifest:
-
-```yaml
-# docker-compose.yml
-services:
-  warden:
-    build: .
-    image: ssh-warden:latest
-    container_name: ssh-warden
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8080:8080"   # bind to loopback; TLS via reverse proxy
-    volumes:
-      - warden-data:/data
-    environment:
-      # WARDEN_WEBHOOK_URL: "https://discord.com/api/webhooks/..."
-      TZ: "Etc/UTC"
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-
-volumes:
-  warden-data:
-```
-
-Run it:
+#### Pull and run
 
 ```sh
-docker compose up -d
-docker compose logs -f warden
+docker pull polarisdev/ssh-warden:latest
+docker run -d --name ssh-warden \
+  -p 8080:8080 \
+  -v warden-data:/data \
+  polarisdev/ssh-warden:latest
 ```
 
-Hardening notes:
+#### Use the bundled Compose manifest
 
-- Bind the published port to `127.0.0.1` and terminate TLS in front of it (see
-  `security.md` > Reverse Proxy & TLS).
-- Run with `read_only: true`, `no-new-privileges`, and a dedicated non-root
-  user in the image so the process cannot write to the container filesystem
-  (only the `/data` volume).
-- Keep `WARDEN_DB_PATH` (or the working directory) on the persistent volume.
+The repository ships a `docker-compose.yml` that wires up the port, the
+persistent data volume and the environment:
+
+```sh
+git clone https://github.com/polarisdev-fr/ssh-warden.git
+cd ssh-warden
+docker compose up -d        # creates ./data and runs on :8080
+docker compose logs -f ssh-warden
+```
+
+Customize the host port, data, and credentials via an `.env` file next to the
+manifest (or environment variables):
+
+```sh
+# .env
+WARDEN_IMAGE=polarisdev/ssh-warden:v0.7.0
+WARDEN_HOST_PORT=9090       # host port -> container WARDEN_PORT
+WARDEN_PORT=8080            # port the server listens on inside the container
+WARDEN_UI_USER=admin        # uncomment matching lines in docker-compose.yml
+WARDEN_UI_PASSWORD=change-me
+WARDEN_ADMIN_GROUP=warden-admins
+```
+
+Then `docker compose up -d` and check health:
+
+```sh
+curl -s http://127.0.0.1:9090/health   # expect "OK"
+```
+
+The container runs a `HEALTHCHECK` that probes `/health` on `WARDEN_PORT`, so
+`docker inspect` shows a healthy state.
+
+#### Build the image yourself
+
+From the repository root:
+
+```sh
+docker build -t ssh-warden:local --build-arg VERSION=dev .
+docker run -d --name ssh-warden -p 8080:8080 -v warden-data:/data ssh-warden:local
+```
+
+#### Hardening notes
+
+- Bind the published port to `127.0.0.1` and terminate TLS in front of it
+  (see `security.md` > Reverse Proxy & TLS), or supply `WARDEN_TLS_CERT` /
+  `WARDEN_TLS_KEY` / `WARDEN_TLS_CA_CERT` for HTTPS / mTLS inside the container.
+- The image is already non-root and read-mostly; add `read_only: true` and
+  `no-new-privileges: true` in Compose to further restrict writes to `/data`.
+- Keep the `/data` volume — it holds `warden.db` (all leases, keys, audit).
+
+#### Publishing releases to Docker Hub
+
+The `docker.yml` GitHub workflow builds and pushes the multi-arch image on every
+`v*.*.*` tag. To enable it, add these repository **secrets**:
+
+| Secret                | Value                                              |
+|-----------------------|----------------------------------------------------|
+| `DOCKERHUB_USERNAME`  | Your Docker Hub username (create the token below). |
+| `DOCKERHUB_TOKEN`     | Docker Hub access token (Read/Write/Delete scope). |
+
+To create the token: hub.docker.com → avatar → **Account Settings** →
+**Security** → **New Access Token**. Store the generated value as
+`DOCKERHUB_TOKEN` (it is shown only once). The image tag is derived from the
+git tag (e.g. `v0.7.0` → `:v0.7.0` and `:latest`).
 
 ### Method B — Native Linux `systemd` service
 
@@ -237,18 +262,14 @@ are needed.
 ### From Docker
 
 ```sh
-# 1. Pull the latest code
-cd ~/ssh-warden
-git pull origin main
+# 1. Pull the latest published image (data volume is preserved)
+docker compose pull ssh-warden
 
-# 2. Rebuild the image
-docker compose build warden
+# 2. Recreate the container
+docker compose up -d ssh-warden
 
-# 3. Recreate the container (data volume is preserved)
-docker compose up -d warden
-
-# 4. Verify
-docker compose logs --tail=20 warden
+# 3. Verify
+docker compose logs --tail=20 ssh-warden
 curl -s http://localhost:8080/health
 ```
 
@@ -264,7 +285,7 @@ systemctl restart ssh-warden.service
 
 # Docker
 git checkout <previous-tag>
-docker compose build warden && docker compose up -d warden
+docker compose pull ssh-warden && docker compose up -d ssh-warden
 ```
 
 The database format is forward-compatible so rolling back the binary is safe.

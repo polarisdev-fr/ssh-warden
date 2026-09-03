@@ -9,6 +9,8 @@ no background daemons, no shell wrappers, no lingering credentials.
 
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![CI](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/ci.yml/badge.svg)](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/ci.yml)
+[![Docker](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/docker.yml/badge.svg)](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/docker.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/polarisdev/ssh-warden)](https://hub.docker.com/repository/docker/polarisdev/ssh-warden)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -87,6 +89,34 @@ go build -o bin/ssh-warden-server ./cmd/server
 go build -o bin/ssh-warden-helper ./cmd/helper
 ```
 
+### Docker (Docker Hub)
+
+Pre-built images are published to **Docker Hub** (`polarisdev/ssh-warden`,
+tags `:vX.Y.Z` and `:latest`, linux/amd64 + arm64). Run it standalone:
+
+```sh
+docker run -d --name ssh-warden \
+  -p 8080:8080 \
+  -v warden-data:/data \
+  polarisdev/ssh-warden:latest
+```
+
+Or use the bundled compose manifest (persistent `./data`, configurable port):
+
+```sh
+git clone https://github.com/polarisdev-fr/ssh-warden.git && cd ssh-warden
+docker compose up -d
+curl -s http://127.0.0.1:8080/health   # expect "OK"
+```
+
+The image is built from a hardened **distroless** base (no shell, non-root),
+keeps the SQLite database on a `/data` volume, and runs a `HEALTHCHECK` against
+`/health`. HTML docs are served at `/docs` (Swagger UI) with the machine
+"Machines" access-stats view and Overview analytics in the `/ui` dashboard. See
+[`docs/installation.md`](docs/installation.md) for the deploy guide and how to
+set up the `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` secrets for publishing
+releases.
+
 ## Configuration
 
 ### Server
@@ -99,7 +129,8 @@ WARDEN_HOST_TOKEN="secret-host-token-123" ./bin/ssh-warden-server
 go run ./cmd/server
 ```
 
-The server listens on `:8080` and exposes:
+The server listens on `:8080` by default (override with `WARDEN_PORT`) and
+exposes:
 
 | Method | Path                        | Description                       |
 | ------ | -------------------------- | --------------------------------- |
@@ -112,21 +143,26 @@ The server listens on `:8080` and exposes:
 | POST   | `/api/v1/leases/{id}/reject`  | Reject a pending lease (user token) |
 | GET    | `/api/v1/audit`            | Audit log                         |
 | POST   | `/api/v1/user-tokens`      | Mint a CLI user token (UI auth)   |
+| GET    | `/api/v1/overview`         | Dashboard overview analytics      |
+| GET    | `/api/v1/hosts`            | Per-machine access stats          |
 | GET    | `/api/v1/system`           | Server info (auth mode, mTLS, DB) |
+| GET    | `/docs`                   | Interactive API docs (Swagger UI) |
+| GET    | `/api/v1/openapi.json`     | OpenAPI 3.0 spec                  |
 | GET    | `/ui`                      | Web UI dashboard                  |
 | GET    | `/ui/cli-auth`             | CLI approve page (UI auth)        |
 
 ### Web UI dashboard
 
 When the server is running, open `http://localhost:8080/ui` in a browser to
-access the built-in Web UI. It has a fixed left sidebar with three views:
-**Leases** (combining pending approvals with Approve/Reject and active leases
-with Revoke), **Audit Logs** (recent access logs), and **System & Info** (auth
-mode, mTLS status, database path). A red badge on the Leases tab shows the
-number of pending approvals. The dashboard auto-refreshes every 15 seconds and
-offers a manual **Refresh** button in the sidebar; expiry badges are
-color-coded (green > 30 min, orange ≤ 30 min, red ≤ 10 min). On mobile the
-sidebar collapses into a hamburger drawer.
+access the built-in Web UI. It has a fixed left sidebar with several views:
+**Overview** (KPIs, an activity chart and top hosts), **Leases** (pending
+approvals with Approve/Reject and active leases with Revoke), **Audit Logs**
+(recent access logs), **Machines** (per-host access stats with an activity
+badge), and **System & Info** (auth mode, mTLS status, database path). A red
+badge on the Leases tab shows the number of pending approvals. The dashboard
+auto-refreshes every 15 seconds and offers a manual **Refresh** button in the
+sidebar; expiry badges are color-coded (green > 30 min, orange ≤ 30 min, red
+≤ 10 min). On mobile the sidebar collapses into a hamburger drawer.
 
 ```sh
 # Quick check in the browser
@@ -313,6 +349,7 @@ effective username is resolved from `-u/--user`, then the config
 | Variable              | Description                                                                 |
 |-----------------------|-----------------------------------------------------------------------------|
 | `WARDEN_API_URL`      | Fallback API URL for the CLI (after the `--api` flag, before the config).   |
+| `WARDEN_PORT`         | Server listen port (default `8080`).                                       |
 | `WARDEN_WEBHOOK_URL`  | Server-side webhook endpoint for critical audit notifications (optional).   |
 | `WARDEN_TLS_CERT`     | Server TLS certificate file path — enables HTTPS (optional).               |
 | `WARDEN_TLS_KEY`      | Server TLS private key file path — enables HTTPS (optional).               |
