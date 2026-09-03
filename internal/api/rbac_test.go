@@ -149,6 +149,44 @@ func TestOverviewAvailable(t *testing.T) {
 	}
 }
 
+// TestCLIToken_OpenDashboard verifies that with no UI auth configured, the
+// token endpoint still works and falls back to the seeded local admin.
+func TestCLIToken_OpenDashboard(t *testing.T) {
+	db, err := database.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	handler := NewServer(db, webhook.Nil()).Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user-tokens", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on open dashboard, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Token    string `json:"token"`
+		Username string `json:"username"`
+		Role     string `json:"role"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+	if resp.Username != localAdminUser || resp.Token == "" {
+		t.Errorf("expected local admin fallback token, got username=%q token=%q", resp.Username, resp.Token)
+	}
+	if resp.Role != models.RoleAdmin {
+		t.Errorf("expected admin role for open dashboard token, got %q", resp.Role)
+	}
+
+	// The minted token must validate as an admin token.
+	user, role, valid := db.ValidateUserToken(resp.Token)
+	if !valid || user != localAdminUser || role != models.RoleAdmin {
+		t.Errorf("expected valid admin token for %s, got user=%q role=%q valid=%v", localAdminUser, user, role, valid)
+	}
+}
+
 // TestWebUI_OverviewAndRoleBadge verifies the dashboard renders the Overview
 // nav item and injects the RBAC role for an admin user.
 func TestWebUI_OverviewAndRoleBadge(t *testing.T) {

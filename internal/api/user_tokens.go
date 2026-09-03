@@ -4,10 +4,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/polarisdev-fr/ssh-warden/internal/models"
 )
 
 // tokenTTL is the lifetime of CLI tokens issued via the Web UI approve flow.
 const tokenTTL = 30 * 24 * time.Hour
+
+// localAdminUser is the username of the seeded local admin. It is the fallback
+// identity used to mint CLI tokens when the dashboard is left entirely open.
+const localAdminUser = "admin"
 
 // userTokenAuth is a middleware that validates the CLI user token carried in
 // the "Authorization: Bearer <token>" header. Downstream handlers use the
@@ -38,11 +44,21 @@ func (s *Server) requireUserToken(next http.HandlerFunc) http.Handler {
 // can hand it to the CLI. The route is guarded by the same UI auth as /ui.
 func (s *Server) handleCreateUserToken(w http.ResponseWriter, r *http.Request) {
 	username := s.currentUserName(r)
+	role := s.currentUserRole(r)
+
+	// On a fully open dashboard (no UI auth configured) there is no identity to
+	// derive a token from. Rather than refusing, fall back to the seeded local
+	// admin so 'warden login' still works. When auth IS configured but the
+	// identity is somehow missing, keep failing closed.
+	if username == "" && !s.uiAuthConfigured() {
+		username = localAdminUser // the seeded local admin user
+		role = models.RoleAdmin
+	}
+
 	if username == "" {
 		http.Error(w, "could not determine authenticated user", http.StatusForbidden)
 		return
 	}
-	role := s.currentUserRole(r)
 
 	raw, err := s.db.CreateUserToken(username, role, tokenTTL)
 	if err != nil {
@@ -57,4 +73,10 @@ func (s *Server) handleCreateUserToken(w http.ResponseWriter, r *http.Request) {
 		"username": username,
 		"role":     role,
 	})
+}
+
+// uiAuthConfigured reports whether the dashboard has any authentication
+// configured (OpenID Connect or Basic Auth). When false the dashboard is open.
+func (s *Server) uiAuthConfigured() bool {
+	return s.oidcProvider != nil || (s.uiUser != "" && s.uiPassword != "")
 }
