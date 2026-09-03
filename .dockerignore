@@ -1,0 +1,24 @@
+# Build artifacts
+bin/
+*.exe
+*.test
+
+# VCS
+.git
+.gitignore
+
+# Local tooling / IDE
+.vscode/
+.idea/
+*.swp
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Docker helpers live in the repo but must not reach the build context
+docker-compose.yml
+Dockerfile
+Dockerfile.*
+.dockerignore
+.github/

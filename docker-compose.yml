@@ -1,0 +1,48 @@
+# SSH-Warden API server. Starts with an open dashboard by default; enable auth
+# via the WARDEN_* variables (Basic Auth, OIDC, mTLS) documented below.
+#   WARDEN_UI_USER / WARDEN_UI_PASSWORD   enable Basic Auth on the dashboard
+#   WARDEN_ADMIN_USERS (CSV) / WARDEN_ADMIN_GROUP   RBAC admin set
+#   WARDEN_OIDC_ENABLED=true + WARDEN_OIDC_ISSUER_URL/CLIENT_ID/CLIENT_SECRET/
+#     REDIRECT_URL + WARDEN_SESSION_SECRET   dashboard via OpenID Connect
+#   WARDEN_TLS_CERT / WARDEN_TLS_KEY (+ WARDEN_TLS_CA_CERT)   serve HTTPS / mTLS
+#   WARDEN_WEBHOOK_URL   Discord/notifier webhook
+#
+# The sqlite database is persisted on the ./data volume (warden.db).
+services:
+  ssh-warden:
+    image: ${WARDEN_IMAGE:-polarisdev/ssh-warden:latest}
+    container_name: ssh-warden
+    restart: unless-stopped
+    ports:
+      - "${WARDEN_PORT:-8080}:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      # Auth (uncomment to enable Basic Auth on the dashboard)
+      # - WARDEN_UI_USER=${WARDEN_UI_USER}
+      # - WARDEN_UI_PASSWORD=${WARDEN_UI_PASSWORD}
+      # - WARDEN_ADMIN_USERS=${WARDEN_ADMIN_USERS}
+      - WARDEN_ADMIN_GROUP=${WARDEN_ADMIN_GROUP:-warden-admins}
+      # Optional notifier
+      - WARDEN_WEBHOOK_URL=${WARDEN_WEBHOOK_URL:-}
+      # Optional OIDC (set WARDEN_OIDC_ENABLED=true)
+      - WARDEN_OIDC_ENABLED=${WARDEN_OIDC_ENABLED:-false}
+      - WARDEN_OIDC_ISSUER_URL=${WARDEN_OIDC_ISSUER_URL:-}
+      - WARDEN_OIDC_CLIENT_ID=${WARDEN_OIDC_CLIENT_ID:-}
+      - WARDEN_OIDC_CLIENT_SECRET=${WARDEN_OIDC_CLIENT_SECRET:-}
+      - WARDEN_OIDC_REDIRECT_URL=${WARDEN_OIDC_REDIRECT_URL:-}
+      - WARDEN_SESSION_SECRET=${WARDEN_SESSION_SECRET:-}
+      # Optional TLS / mTLS (mount certs into /certs and set the paths)
+      # - WARDEN_TLS_CERT=/certs/tls.crt
+      # - WARDEN_TLS_KEY=/certs/tls.key
+      # - WARDEN_TLS_CA_CERT=/certs/ca.crt
+    # Uncomment to mount TLS certificates
+    # volumes:
+    #   - ./data:/data
+    #   - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/warden-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
