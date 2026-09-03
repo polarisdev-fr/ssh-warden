@@ -124,6 +124,7 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/api/v1/system", systemHandler{s: s}.ServeHTTP)
 	r.With(s.attachActor).Get("/api/v1/overview", s.handleOverview)
 	r.With(s.attachActor).Get("/api/v1/hosts", s.handleListHosts)
+	webui.RegisterDocsRoutes(r)
 	s.registerUIRoutes(r)
 
 	return r

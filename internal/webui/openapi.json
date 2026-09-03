@@ -1,0 +1,420 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SSH-Warden API",
+    "description": "Temporary SSH access management. Users request time-boxed leases for host machines, and each host's OpenSSH `AuthorizedKeysCommand` (the ssh-warden helper) fetches the currently authorized public keys from this API.\n\n## Authentication\n\n* **Host bearer token** — the helper authenticates each key-fetch with `Authorization: Bearer <host-token>` so keys are never exposed without a valid machine identity.\n* **User CLI token** — the CLI `warden login` flow mints a token (via the dashboard) used for `warden request`, `warden approve`, etc. Add it as `Authorization: Bearer <user-token>`.\n* **RBAC** — by default anonymous calls are treated as admins. When `WARDEN_ADMIN_GROUP`/`WARDEN_ADMIN_USERS` are configured, listing endpoints scope a regular user to their own leases/audit/hosts.",
+    "version": "v0.5.0"
+  },
+  "servers": [{ "url": "/", "description": "Same origin as the server (or reverse proxy)" }],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness probe",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Server is healthy. Body is the plain text `OK`.",
+            "content": { "text/plain": { "schema": { "type": "string", "example": "OK" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/leases": {
+      "get": {
+        "summary": "List active leases",
+        "operationId": "listLeases",
+        "parameters": [
+          { "name": "user", "in": "query", "required": false, "description": "Filter to a username (regular users are always scoped to themselves).", "schema": { "type": "string" } }
+        ],
+        "security": [{ "userToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Approved, active leases.",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LeaseInfo" } } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "summary": "Create a lease",
+        "operationId": "createLease",
+        "description": "Creates a time-boxed lease for a user against a target host (`*` when omitted). When `requires_approval` is true the lease is created in a pending state instead of being granted immediately.",
+        "security": [{ "userToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLeaseRequest" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Lease created.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Lease" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/leases/pending": {
+      "get": {
+        "summary": "List pending leases",
+        "operationId": "listPendingLeases",
+        "parameters": [
+          { "name": "user", "in": "query", "required": false, "description": "Filter to a username (regular users are always scoped to themselves).", "schema": { "type": "string" } }
+        ],
+        "security": [{ "userToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Leases awaiting approval.",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LeaseInfo" } } } }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/leases/{id}/approve": {
+      "post": {
+        "summary": "Approve a pending lease",
+        "operationId": "approveLease",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Message" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/v1/leases/{id}/reject": {
+      "post": {
+        "summary": "Reject a pending lease",
+        "operationId": "rejectLease",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Message" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/v1/leases/{id}": {
+      "delete": {
+        "summary": "Revoke a lease",
+        "operationId": "revokeLease",
+        "description": "Revokes a lease. Admins may revoke any lease; a regular user may only revoke their own.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Lease ID.", "schema": { "type": "integer", "format": "int64" } }
+        ],
+        "security": [{ "userToken": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Message" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "summary": "List audit events",
+        "operationId": "listAudit",
+        "parameters": [
+          { "name": "limit", "in": "query", "required": false, "description": "Maximum number of entries (0 = all).", "schema": { "type": "integer" } },
+          { "name": "user", "in": "query", "required": false, "description": "Filter by username (regular users are always scoped to themselves).", "schema": { "type": "string" } },
+          { "name": "host", "in": "query", "required": false, "description": "Filter by target host.", "schema": { "type": "string" } }
+        ],
+        "security": [{ "userToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Audit events, newest first.",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLog" } } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/keys/{username}": {
+      "get": {
+        "summary": "Fetch authorized keys for a user",
+        "operationId": "getUserKeys",
+        "description": "Called by each host's OpenSSH AuthorizedKeysCommand. Returns the user's currently authorized public keys (one per line) when an active lease covers the requested target host. Requires a valid host bearer token.",
+        "parameters": [
+          { "name": "username", "in": "path", "required": true, "description": "SSH username.", "schema": { "type": "string" } },
+          { "name": "host", "in": "query", "required": false, "description": "Target hostname the helper is running on (defaults to `*`).", "schema": { "type": "string" } }
+        ],
+        "security": [{ "hostToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Authorized public keys, one per line.",
+            "content": { "text/plain": { "schema": { "type": "string", "example": "ssh-ed25519 AAAA... user@host\n" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": {
+            "description": "No active lease or no keys for the user on that host.",
+            "content": { "text/plain": { "schema": { "type": "string", "example": "no active keys found or lease expired" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/keys": {
+      "post": {
+        "summary": "Register a public key for a user",
+        "operationId": "addKey",
+        "security": [{ "userToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddKeyRequest" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Key registered.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SSHKey" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/overview": {
+      "get": {
+        "summary": "Overview analytics",
+        "operationId": "getOverview",
+        "description": "KPI counts, an activity timeline and top-host breakdown for the dashboard Overview view. Scoped to the caller (admin/anonymous see everything).",
+        "security": [{ "userToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Overview aggregation.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Overview" } } }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/hosts": {
+      "get": {
+        "summary": "Per-machine access statistics",
+        "operationId": "listHosts",
+        "description": "Access statistics derived from the audit journal, one entry per target host (grants, denies, distinct users, last access). Regular users only see the machines they accessed.",
+        "security": [{ "userToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Host statistics.",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HostStats" } } } }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/system": {
+      "get": {
+        "summary": "System information",
+        "operationId": "getSystem",
+        "responses": {
+          "200": {
+            "description": "Operational snapshot.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemInfo" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/user-tokens": {
+      "post": {
+        "summary": "Mint a CLI user token",
+        "operationId": "createUserToken",
+        "description": "Mints a CLI token for the authenticated dashboard user. Guarded by the same authentication as the /ui dashboard.",
+        "responses": {
+          "200": {
+            "description": "Token minted.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserToken" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "summary": "Swagger UI",
+        "operationId": "swaggerUi",
+        "responses": {
+          "200": {
+            "description": "Interactive API documentation (Swagger UI).",
+            "content": { "text/html": { "schema": { "type": "string" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "summary": "OpenAPI specification",
+        "operationId": "openapiSpec",
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.0 JSON specification.",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "hostToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Machine host bearer token used by the ssh-warden helper when fetching keys."
+      },
+      "userToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "CLI user token obtained via `warden login`."
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid request." },
+      "Unauthorized": { "description": "Missing or invalid token." },
+      "Forbidden": { "description": "Insufficient permissions." },
+      "NotFound": { "description": "Resource not found." },
+      "Conflict": { "description": "Unprocessable state (e.g. lease not pending)." },
+      "InternalError": { "description": "Internal server error." },
+      "Message": {
+        "description": "Operational message.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+      }
+    },
+    "schemas": {
+      "Message": {
+        "type": "object",
+        "properties": { "message": { "type": "string" } }
+      },
+      "Lease": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "user_id": { "type": "integer", "format": "int64" },
+          "target_host": { "type": "string" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "reason": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["approved", "pending", "denied"] }
+        }
+      },
+      "LeaseInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "username": { "type": "string" },
+          "target_host": { "type": "string" },
+          "reason": { "type": "string" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["approved", "pending", "denied"] }
+        }
+      },
+      "CreateLeaseRequest": {
+        "type": "object",
+        "required": ["username", "duration"],
+        "properties": {
+          "username": { "type": "string", "example": "alice" },
+          "target_host": { "type": "string", "description": "Target host (defaults to `*` for all).", "example": "srv-web-01" },
+          "duration": { "type": "string", "description": "Go duration string.", "example": "2h" },
+          "reason": { "type": "string", "example": "Incident response" },
+          "requires_approval": { "type": "boolean", "description": "When true, create the lease in a pending state.", "default": false }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "username": { "type": "string" },
+          "target_host": { "type": "string" },
+          "action": { "type": "string", "enum": ["KEY_REQUEST_GRANTED", "KEY_REQUEST_DENIED", "HOST_AUTH_FAILED", "LEASE_APPROVED", "LEASE_REJECTED"] },
+          "reason": { "type": "string" },
+          "client_ip": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SSHKey": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "user_id": { "type": "integer", "format": "int64" },
+          "public_key": { "type": "string" },
+          "comment": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AddKeyRequest": {
+        "type": "object",
+        "required": ["username", "public_key"],
+        "properties": {
+          "username": { "type": "string", "example": "alice" },
+          "public_key": { "type": "string", "description": "Authorized public key line." },
+          "comment": { "type": "string" }
+        }
+      },
+      "ActivityPoint": {
+        "type": "object",
+        "properties": {
+          "bucket": { "type": "string", "example": "09-02" },
+          "granted": { "type": "integer" },
+          "denied": { "type": "integer" },
+          "active_leases": { "type": "integer" }
+        }
+      },
+      "HostCount": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "count": { "type": "integer" }
+        }
+      },
+      "Overview": {
+        "type": "object",
+        "properties": {
+          "active_leases_count": { "type": "integer" },
+          "pending_leases_count": { "type": "integer" },
+          "total_granted_24h": { "type": "integer" },
+          "total_denied_24h": { "type": "integer" },
+          "activity_timeline": { "type": "array", "items": { "$ref": "#/components/schemas/ActivityPoint" } },
+          "top_hosts": { "type": "array", "items": { "$ref": "#/components/schemas/HostCount" } }
+        }
+      },
+      "HostStats": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "granted": { "type": "integer" },
+          "denied": { "type": "integer" },
+          "users": { "type": "array", "items": { "type": "string" } },
+          "last_seen": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SystemInfo": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "auth_mode": { "type": "string" },
+          "auth_enabled": { "type": "boolean" },
+          "mtls_enabled": { "type": "boolean" },
+          "db_path": { "type": "string" }
+        }
+      },
+      "UserToken": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "username": { "type": "string" },
+          "role": { "type": "string", "enum": ["user", "admin"] }
+        }
+      }
+    }
+  }
+}

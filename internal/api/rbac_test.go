@@ -167,6 +167,38 @@ func TestHostsEndpoint(t *testing.T) {
 	}
 }
 
+// TestDocsRoutes verifies the interactive documentation endpoints serve the
+// OpenAPI specification and the Swagger UI shell.
+func TestDocsRoutes(t *testing.T) {
+	srv, _ := newTestServer(t)
+	handler := srv.Handler()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/openapi.json", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("openapi: expected 200, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("openapi content-type = %q", ct)
+	}
+	var spec map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("openapi not valid json: %v", err)
+	}
+	if spec["openapi"] != "3.0.3" {
+		t.Errorf("unexpected openapi version: %v", spec["openapi"])
+	}
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/docs", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("docs: expected 200, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "swagger-ui") {
+		t.Errorf("docs page missing swagger-ui reference")
+	}
+}
+
 // TestOverviewAvailable verifies the overview endpoint responds with expected
 // aggregation fields.
 func TestOverviewAvailable(t *testing.T) {
