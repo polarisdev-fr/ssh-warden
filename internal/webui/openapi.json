@@ -3,8 +3,16 @@
   "info": {
     "title": "SSH-Warden API",
     "description": "Temporary SSH access management. Users request time-boxed leases for host machines, and each host's OpenSSH `AuthorizedKeysCommand` (the ssh-warden helper) fetches the currently authorized public keys from this API.\n\n## Authentication\n\n* **Host bearer token** — the helper authenticates each key-fetch with `Authorization: Bearer <host-token>` so keys are never exposed without a valid machine identity.\n* **User CLI token** — the CLI `warden login` flow mints a token (via the dashboard) used for `warden request`, `warden approve`, etc. Add it as `Authorization: Bearer <user-token>`.\n* **RBAC** — by default anonymous calls are treated as admins. When `WARDEN_ADMIN_GROUP`/`WARDEN_ADMIN_USERS` are configured, listing endpoints scope a regular user to their own leases/audit/hosts.",
-    "version": "v0.5.0"
+    "version": "v0.6.0"
   },
+  "tags": [
+    { "name": "Leases", "description": "Time-boxed SSH access grants and their approval workflow." },
+    { "name": "Audit", "description": "Authorization decisions recorded from host key-fetch requests." },
+    { "name": "Keys", "description": "Public key registration and host-side key retrieval." },
+    { "name": "Hosts", "description": "Per-machine access statistics derived from the audit journal." },
+    { "name": "Dashboard", "description": "Overview analytics, system info and the interactive documentation." },
+    { "name": "Auth", "description": "CLI user token issuance." }
+  ],
   "servers": [{ "url": "/", "description": "Same origin as the server (or reverse proxy)" }],
   "paths": {
     "/health": {
@@ -23,6 +31,7 @@
       "get": {
         "summary": "List active leases",
         "operationId": "listLeases",
+        "tags": ["Leases"],
         "parameters": [
           { "name": "user", "in": "query", "required": false, "description": "Filter to a username (regular users are always scoped to themselves).", "schema": { "type": "string" } }
         ],
@@ -39,6 +48,7 @@
       "post": {
         "summary": "Create a lease",
         "operationId": "createLease",
+        "tags": ["Leases"],
         "description": "Creates a time-boxed lease for a user against a target host (`*` when omitted). When `requires_approval` is true the lease is created in a pending state instead of being granted immediately.",
         "security": [{ "userToken": [] }],
         "requestBody": {
@@ -59,6 +69,7 @@
       "get": {
         "summary": "List pending leases",
         "operationId": "listPendingLeases",
+        "tags": ["Leases"],
         "parameters": [
           { "name": "user", "in": "query", "required": false, "description": "Filter to a username (regular users are always scoped to themselves).", "schema": { "type": "string" } }
         ],
@@ -76,6 +87,11 @@
       "post": {
         "summary": "Approve a pending lease",
         "operationId": "approveLease",
+        "tags": ["Leases"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Lease ID.", "schema": { "type": "integer", "format": "int64" } }
+        ],
+        "security": [{ "userToken": [] }],
         "responses": {
           "200": { "$ref": "#/components/responses/Message" },
           "400": { "$ref": "#/components/responses/BadRequest" },
@@ -90,6 +106,11 @@
       "post": {
         "summary": "Reject a pending lease",
         "operationId": "rejectLease",
+        "tags": ["Leases"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Lease ID.", "schema": { "type": "integer", "format": "int64" } }
+        ],
+        "security": [{ "userToken": [] }],
         "responses": {
           "200": { "$ref": "#/components/responses/Message" },
           "400": { "$ref": "#/components/responses/BadRequest" },
@@ -104,6 +125,7 @@
       "delete": {
         "summary": "Revoke a lease",
         "operationId": "revokeLease",
+        "tags": ["Leases"],
         "description": "Revokes a lease. Admins may revoke any lease; a regular user may only revoke their own.",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "description": "Lease ID.", "schema": { "type": "integer", "format": "int64" } }
@@ -122,6 +144,7 @@
       "get": {
         "summary": "List audit events",
         "operationId": "listAudit",
+        "tags": ["Audit"],
         "parameters": [
           { "name": "limit", "in": "query", "required": false, "description": "Maximum number of entries (0 = all).", "schema": { "type": "integer" } },
           { "name": "user", "in": "query", "required": false, "description": "Filter by username (regular users are always scoped to themselves).", "schema": { "type": "string" } },
@@ -142,6 +165,7 @@
       "get": {
         "summary": "Fetch authorized keys for a user",
         "operationId": "getUserKeys",
+        "tags": ["Keys"],
         "description": "Called by each host's OpenSSH AuthorizedKeysCommand. Returns the user's currently authorized public keys (one per line) when an active lease covers the requested target host. Requires a valid host bearer token.",
         "parameters": [
           { "name": "username", "in": "path", "required": true, "description": "SSH username.", "schema": { "type": "string" } },
@@ -166,6 +190,7 @@
       "post": {
         "summary": "Register a public key for a user",
         "operationId": "addKey",
+        "tags": ["Keys"],
         "security": [{ "userToken": [] }],
         "requestBody": {
           "required": true,
@@ -185,6 +210,7 @@
       "get": {
         "summary": "Overview analytics",
         "operationId": "getOverview",
+        "tags": ["Dashboard"],
         "description": "KPI counts, an activity timeline and top-host breakdown for the dashboard Overview view. Scoped to the caller (admin/anonymous see everything).",
         "security": [{ "userToken": [] }],
         "responses": {
@@ -200,6 +226,7 @@
       "get": {
         "summary": "Per-machine access statistics",
         "operationId": "listHosts",
+        "tags": ["Hosts"],
         "description": "Access statistics derived from the audit journal, one entry per target host (grants, denies, distinct users, last access). Regular users only see the machines they accessed.",
         "security": [{ "userToken": [] }],
         "responses": {
@@ -215,6 +242,7 @@
       "get": {
         "summary": "System information",
         "operationId": "getSystem",
+        "tags": ["Dashboard"],
         "responses": {
           "200": {
             "description": "Operational snapshot.",
@@ -227,6 +255,7 @@
       "post": {
         "summary": "Mint a CLI user token",
         "operationId": "createUserToken",
+        "tags": ["Auth"],
         "description": "Mints a CLI token for the authenticated dashboard user. Guarded by the same authentication as the /ui dashboard.",
         "responses": {
           "200": {
@@ -243,6 +272,7 @@
       "get": {
         "summary": "Swagger UI",
         "operationId": "swaggerUi",
+        "tags": ["Dashboard"],
         "responses": {
           "200": {
             "description": "Interactive API documentation (Swagger UI).",
@@ -255,6 +285,7 @@
       "get": {
         "summary": "OpenAPI specification",
         "operationId": "openapiSpec",
+        "tags": ["Dashboard"],
         "responses": {
           "200": {
             "description": "The OpenAPI 3.0 JSON specification.",

@@ -7,15 +7,19 @@ import (
 
 //go:embed openapi.json
 //go:embed swagger.html
+//go:embed swagger-ui-bundle.js
+//go:embed swagger-ui.css
 var docsFS embed.FS
 
 // RegisterDocsRoutes mounts the interactive API documentation. It serves the
-// Swagger UI page on GET /docs and the OpenAPI 3.0 specification it consumes on
-// GET /api/v1/openapi.json (relative to the app root).
+// Swagger UI shell on GET /docs, its bundled assets (self-contained, no CDN)
+// under /docs/, and the OpenAPI 3.0 specification on GET /api/v1/openapi.json.
 func RegisterDocsRoutes(r interface {
 	Get(pattern string, handler http.HandlerFunc)
 }) {
 	r.Get("/docs", serveDocFile("swagger.html", "text/html; charset=utf-8"))
+	r.Get("/docs/swagger-ui-bundle.js", serveDocFile("swagger-ui-bundle.js", "application/javascript; charset=utf-8"))
+	r.Get("/docs/swagger-ui.css", serveDocFile("swagger-ui.css", "text/css; charset=utf-8"))
 	r.Get("/api/v1/openapi.json", serveDocFile("openapi.json", "application/json"))
 }
 
