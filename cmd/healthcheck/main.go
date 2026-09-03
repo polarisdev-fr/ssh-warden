@@ -11,7 +11,11 @@ import (
 )
 
 func main() {
-	url := "http://127.0.0.1:8080/health"
+	port := os.Getenv("WARDEN_PORT")
+	if port == "" {
+		port = "8080"
+	}
+	url := "http://127.0.0.1:" + port + "/health"
 	if v := os.Getenv("WARDEN_HEALTHCHECK_URL"); v != "" {
 		url = v
 	}

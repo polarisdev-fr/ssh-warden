@@ -14,10 +14,13 @@ services:
     container_name: ssh-warden
     restart: unless-stopped
     ports:
-      - "${WARDEN_PORT:-8080}:8080"
+      - "${WARDEN_HOST_PORT:-8080}:${WARDEN_PORT:-8080}"
     volumes:
       - ./data:/data
     environment:
+      # The server listens on WARDEN_PORT (default 8080). The container's
+      # EXPOSE 8080 still labels it; map the host side via WARDEN_HOST_PORT.
+      - WARDEN_PORT=${WARDEN_PORT:-8080}
       # Auth (uncomment to enable Basic Auth on the dashboard)
       # - WARDEN_UI_USER=${WARDEN_UI_USER}
       # - WARDEN_UI_PASSWORD=${WARDEN_UI_PASSWORD}

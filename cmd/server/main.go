@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -90,8 +91,13 @@ func run() error {
 	}
 	apiServer.WithSystemInfo(dbPath, tlsCACertFile != "")
 
+	addr, err := listenAddr(os.Getenv("WARDEN_PORT"))
+	if err != nil {
+		return err
+	}
+
 	srv := &http.Server{
-		Addr:    defaultAddr,
+		Addr:    addr,
 		Handler: apiServer.Handler(),
 	}
 
@@ -115,7 +121,7 @@ func run() error {
 		}
 
 		srv.TLSConfig = tlsCfg
-		log.Printf("SSH-Warden API listening on https://localhost%s", defaultAddr)
+		log.Printf("SSH-Warden API listening on https://localhost%s", addr)
 		serverErr := make(chan error, 1)
 		go func() {
 			serverErr <- srv.ListenAndServeTLS(tlsCertFile, tlsKeyFile)
@@ -130,7 +136,7 @@ func run() error {
 		case <-quit:
 		}
 	} else {
-		log.Printf("SSH-Warden API listening on http://localhost%s", defaultAddr)
+		log.Printf("SSH-Warden API listening on http://localhost%s", addr)
 		serverErr := make(chan error, 1)
 		go func() {
 			serverErr <- srv.ListenAndServe()
@@ -162,6 +168,19 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// listenAddr resolves the HTTP listen address. WARDEN_PORT is a bare TCP port
+// (e.g. "9090"); when unset or invalid the default :8080 is used.
+func listenAddr(port string) (string, error) {
+	if port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return "", fmt.Errorf("WARDEN_PORT must be a valid port 1-65535, got %q", port)
+		}
+		return ":" + port, nil
+	}
+	return defaultAddr, nil
 }
 
 // newOIDCProvider builds and verifies the OpenID Connect provider from the

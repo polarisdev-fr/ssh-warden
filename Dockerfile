@@ -37,6 +37,8 @@ COPY --from=build /out/warden-healthcheck /usr/local/bin/warden-healthcheck
 # here to keep warden.db across container restarts.
 VOLUME ["/data"]
 
+# Informational label (the server listens on WARDEN_PORT at runtime, default
+# 8080); this is only a hint for tooling.
 EXPOSE 8080
 
 # Docker uses this executable as the healthcheck; it performs an HTTP GET to
