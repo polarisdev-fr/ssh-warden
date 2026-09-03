@@ -119,6 +119,54 @@ func TestUserCannotRevokeOthersLease(t *testing.T) {
 	}
 }
 
+// TestHostsEndpoint verifies the machines view returns per-host statistics and
+// scopes a regular user to the machines they accessed.
+func TestHostsEndpoint(t *testing.T) {
+	srv, db := newTestServer(t)
+	handler := srv.Handler()
+
+	if err := db.RecordAudit("alice", "srv-web-01", "KEY_REQUEST_GRANTED", "ok", "1.2.3.4"); err != nil {
+		t.Fatalf("RecordAudit: %v", err)
+	}
+	if err := db.RecordAudit("bob", "srv-db-01", "KEY_REQUEST_GRANTED", "ok", "5.6.7.8"); err != nil {
+		t.Fatalf("RecordAudit: %v", err)
+	}
+
+	// Anonymous sees all hosts.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/hosts", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var all []models.HostStats
+	if err := json.Unmarshal(rec.Body.Bytes(), &all); err != nil {
+		t.Fatalf("decode hosts: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 hosts, got %d", len(all))
+	}
+
+	// A regular user only sees the machines they accessed.
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/hosts", nil)
+	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var mine []models.HostStats
+	if err := json.Unmarshal(rec.Body.Bytes(), &mine); err != nil {
+		t.Fatalf("decode hosts: %v", err)
+	}
+	if len(mine) != 1 || mine[0].Host != "srv-web-01" {
+		t.Errorf("expected only srv-web-01 for alice, got %+v", mine)
+	}
+	if mine[0].Granted != 1 {
+		t.Errorf("expected 1 grant, got %d", mine[0].Granted)
+	}
+}
+
 // TestOverviewAvailable verifies the overview endpoint responds with expected
 // aggregation fields.
 func TestOverviewAvailable(t *testing.T) {

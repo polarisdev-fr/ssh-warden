@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/polarisdev-fr/ssh-warden/internal/models"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -410,5 +411,71 @@ func TestUserTokenExpired(t *testing.T) {
 	}
 	if _, _, valid := db.ValidateUserToken(raw); valid {
 		t.Error("expected expired token to be invalid")
+	}
+}
+
+func TestHostStats(t *testing.T) {
+	db := mustOpen(t)
+	defer closeDB(t, db)
+
+	if err := db.RecordAudit("alice", "srv-web-01", "KEY_REQUEST_GRANTED", "ok", "1.2.3.4"); err != nil {
+		t.Fatalf("RecordAudit grant: %v", err)
+	}
+	if err := db.RecordAudit("bob", "srv-web-01", "KEY_REQUEST_GRANTED", "ok", "5.6.7.8"); err != nil {
+		t.Fatalf("RecordAudit grant: %v", err)
+	}
+	if err := db.RecordAudit("alice", "srv-web-01", "KEY_REQUEST_DENIED", "no", "1.2.3.4"); err != nil {
+		t.Fatalf("RecordAudit deny: %v", err)
+	}
+	if err := db.RecordAudit("alice", "srv-db-01", "KEY_REQUEST_GRANTED", "ok", "1.2.3.4"); err != nil {
+		t.Fatalf("RecordAudit grant: %v", err)
+	}
+
+	all, err := db.HostStats("")
+	if err != nil {
+		t.Fatalf("HostStats: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 hosts, got %d", len(all))
+	}
+
+	var web, dbh *models.HostStats
+	for i := range all {
+		if all[i].Host == "srv-web-01" {
+			web = &all[i]
+		}
+		if all[i].Host == "srv-db-01" {
+			dbh = &all[i]
+		}
+	}
+	if web == nil || dbh == nil {
+		t.Fatalf("missing expected hosts, got %+v", all)
+	}
+	if web.Granted != 2 || web.Denied != 1 {
+		t.Errorf("srv-web-01: expected granted=2 denied=1, got %d/%d", web.Granted, web.Denied)
+	}
+	if len(web.Users) != 2 {
+		t.Errorf("srv-web-01: expected 2 distinct users, got %v", web.Users)
+	}
+	if dbh.Granted != 1 || dbh.Denied != 0 {
+		t.Errorf("srv-db-01: expected granted=1 denied=0, got %d/%d", dbh.Granted, dbh.Denied)
+	}
+	if web.LastSeen.IsZero() {
+		t.Error("expected LastSeen to be set")
+	}
+
+	// Scoped to a single user.
+	mine, err := db.HostStats("alice")
+	if err != nil {
+		t.Fatalf("HostStats(alice): %v", err)
+	}
+	if len(mine) != 2 {
+		t.Fatalf("expected alice to have 2 hosts, got %d", len(mine))
+	}
+	for _, h := range mine {
+		if len(h.Users) > 1 && h.Host == "srv-web-01" {
+			// alice and bob both hit srv-web-01, but scoped to alice only alice appears.
+			t.Errorf("expected only alice in scoped users for %s, got %v", h.Host, h.Users)
+		}
 	}
 }

@@ -100,13 +100,17 @@ type SystemInfo struct {
 	DBPath      string `json:"db_path"`
 }
 
-// ActivityPoint aggregates authorization decisions for a single time bucket
-// (usually one day) used by the Overview activity chart.
+// ActivityPoint aggregates authorization decisions and active-lease counts for
+// a single time bucket (usually one day) used by the Overview activity chart.
 type ActivityPoint struct {
 	// Bucket is a short human label for the bucket (e.g. "09-02" or "14:00").
 	Bucket  string `json:"bucket"`
 	Granted int    `json:"granted"`
 	Denied  int    `json:"denied"`
+	// ActiveLeases is how many approved leases were valid on that bucket's day
+	// (a lease is counted if its [created_at, expires_at) interval overlaps the
+	// day). Used by the Overview chart to show lease activity over time.
+	ActiveLeases int `json:"active_leases"`
 }
 
 // HostCount reports how many times a target host was granted access, used by
@@ -114,6 +118,23 @@ type ActivityPoint struct {
 type HostCount struct {
 	Host  string `json:"host"`
 	Count int    `json:"count"`
+}
+
+// HostStats aggregates access statistics for a single machine (target host),
+// used by the dashboard "Machines" view. They are derived from the audit
+// journal: every time a host's helper asks for a user's keys, an entry is
+// recorded with the target hostname.
+type HostStats struct {
+	// Host is the machine hostname (from audit target_host).
+	Host string `json:"host"`
+	// Granted is how many times keys were successfully returned to that host.
+	Granted int `json:"granted"`
+	// Denied is how many times access was refused on that host.
+	Denied int `json:"denied"`
+	// Users is the distinct set of usernames that accessed the host.
+	Users []string `json:"users"`
+	// LastSeen is the timestamp of the host's most recent key fetch.
+	LastSeen time.Time `json:"last_seen"`
 }
 
 // Overview aggregates the metrics shown by the dashboard Overview view.

@@ -169,6 +169,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
       <span class="nav-label">Audit Logs</span>
     </a>
+    <a id="nav-hosts" onclick="switchView('hosts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="6" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="10" y2="12"/></svg>
+      <span class="nav-label">Machines</span>
+    </a>
     <a id="nav-system" onclick="switchView('system')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span class="nav-label">System &amp; Info</span>
@@ -229,6 +233,12 @@
   <section id="view-audit" class="view">
     <div class="view-title">Audit Logs <span class="updated-at" id="updated-at-audit"></span></div>
     <div id="audit-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
+  </section>
+
+  <!-- Machines view -->
+  <section id="view-hosts" class="view">
+    <div class="view-title">Machines <span class="updated-at" id="updated-at-hosts"></span></div>
+    <div id="hosts-wrap" class="table-wrap"><p class="empty">Loading&hellip;</p></div>
   </section>
 
   <!-- System view -->
@@ -362,6 +372,46 @@ function renderAudit(logs) {
   }
   html += '</table>';
   wrap.innerHTML = html;
+}
+
+// ---------- Machines ----------
+function renderHosts(hosts) {
+  hosts = hosts || [];
+  const wrap = document.getElementById('hosts-wrap');
+  if (!hosts.length) { wrap.innerHTML = '<p class="empty">No machines have been accessed yet.</p>'; return; }
+  let html = '<table><tr><th>Machine</th><th>Activity</th><th>Grants</th><th>Denies</th><th>Users</th><th>Last Access</th></tr>';
+  for (const h of hosts) {
+    html += '<tr><td><strong>' + esc(h.host) + '</strong></td><td>' + freshnessBadge(h.last_seen) + '</td>'
+      + '<td>' + h.granted + '</td><td>' + h.denied + '</td>'
+      + '<td>' + (h.users && h.users.length ? esc(h.users.join(', ')) : '<span class="muted">—</span>') + '</td>'
+      + '<td>' + (h.last_seen ? new Date(h.last_seen).toLocaleString() : '<span class="muted">—</span>') + '</td></tr>';
+  }
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+// Freshness badge for a machine: "online-like" based on how long ago its
+// helper last fetched keys (each SSH connection triggers a key fetch).
+function freshnessBadge(lastSeen) {
+  if (!lastSeen) return '<span class="badge badge-gray">never</span>';
+  const diff = new Date() - new Date(lastSeen);
+  const min = Math.floor(diff / 60000);
+  if (min < 15) return '<span class="badge badge-green">active ' + fmtAgo(min) + '</span>';
+  if (min < 60) return '<span class="badge badge-yellow">idle ' + fmtAgo(min) + '</span>';
+  return '<span class="badge badge-gray">offline</span>';
+}
+
+function fmtAgo(min) {
+  if (min < 1) return '< 1 min';
+  if (min < 60) return min + ' min';
+  const h = Math.floor(min / 60);
+  return h + 'h ' + (min % 60) + 'm';
+}
+
+function loadHosts() {
+  api('GET', '/api/v1/hosts')
+    .then(renderHosts)
+    .catch(e => { console.warn('hosts:', e); renderHosts([]); });
 }
 
 const AUTH_LABELS = { oidc: 'OpenID Connect', basic: 'Basic Auth', none: 'None (open)' };
@@ -540,6 +590,7 @@ function switchView(name) {
 function refreshFor(name) {
   if (name === 'system') loadSystem();
   else if (name === 'overview') loadOverview();
+  else if (name === 'hosts') loadHosts();
 }
 
 function loadOverview() {
@@ -558,14 +609,17 @@ function updateTimestamp() {
   const t = new Date().toLocaleTimeString();
   const main = document.getElementById('updated-at');
   const audit = document.getElementById('updated-at-audit');
+  const hosts = document.getElementById('updated-at-hosts');
   if (main) main.textContent = 'Updated ' + t;
   if (audit) audit.textContent = 'Updated ' + t;
+  if (hosts) hosts.textContent = 'Updated ' + t;
 }
 
 function load() {
   api('GET', '/api/v1/leases/pending').then(renderPending).catch(e => { console.warn('pending:', e); renderPending([]); });
   api('GET', '/api/v1/leases').then(renderLeases).catch(e => { console.warn('leases:', e); renderLeases([]); });
   api('GET', '/api/v1/audit?limit=20').then(renderAudit).catch(e => { console.warn('audit:', e); renderAudit([]); });
+  loadHosts();
   loadOverview();
   loadSystem();
   updateTimestamp();

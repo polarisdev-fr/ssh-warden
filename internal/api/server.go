@@ -123,6 +123,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerAuditRoutes(r)
 	r.Get("/api/v1/system", systemHandler{s: s}.ServeHTTP)
 	r.With(s.attachActor).Get("/api/v1/overview", s.handleOverview)
+	r.With(s.attachActor).Get("/api/v1/hosts", s.handleListHosts)
 	s.registerUIRoutes(r)
 
 	return r

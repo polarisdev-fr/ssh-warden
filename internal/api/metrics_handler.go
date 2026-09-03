@@ -67,3 +67,23 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(overview)
 }
+
+// handleListHosts returns per-machine access statistics for the dashboard
+// "Machines" view. A regular user only sees the machines they accessed; an
+// admin (or anonymous caller) sees all machines.
+func (s *Server) handleListHosts(w http.ResponseWriter, r *http.Request) {
+	user := s.forcedUsername(r)
+
+	hosts, err := s.db.HostStats(user)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if hosts == nil {
+		hosts = []models.HostStats{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(hosts)
+}
