@@ -84,7 +84,21 @@ func countAudit(t *testing.T, db *database.DB, action string) int {
 // Authorization header set with it, for the mutating lease tests.
 func cliAuthHeader(t *testing.T, db *database.DB, username string) string {
 	t.Helper()
-	raw, err := db.CreateUserToken(username, time.Hour)
+	return cliRoleAuthHeader(t, db, username, "")
+}
+
+// cliAdminAuthHeader mints a CLI token carrying the admin role, used for
+// tests that exercise admin-only lease approvals.
+func cliAdminAuthHeader(t *testing.T, db *database.DB, username string) string {
+	t.Helper()
+	return cliRoleAuthHeader(t, db, username, "admin")
+}
+
+// cliRoleAuthHeader mints a CLI user token with the given role and returns the
+// Authorization header set with it.
+func cliRoleAuthHeader(t *testing.T, db *database.DB, username, role string) string {
+	t.Helper()
+	raw, err := db.CreateUserToken(username, role, time.Hour)
 	if err != nil {
 		t.Fatalf("CreateUserToken: %v", err)
 	}
@@ -401,7 +415,7 @@ func TestApproveLease(t *testing.T) {
 
 	body := ""
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/leases/%d/approve", lease.ID), strings.NewReader(body))
-	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
+	req.Header.Set("Authorization", cliAdminAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -433,7 +447,7 @@ func TestRejectLease(t *testing.T) {
 
 	body := ""
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/leases/%d/reject", lease.ID), strings.NewReader(body))
-	req.Header.Set("Authorization", cliAuthHeader(t, db, "bob"))
+	req.Header.Set("Authorization", cliAdminAuthHeader(t, db, "bob"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -464,7 +478,7 @@ func TestApproveAlreadyApprovedLease(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/leases/%d/approve", lease.ID), strings.NewReader(""))
-	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
+	req.Header.Set("Authorization", cliAdminAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -478,7 +492,7 @@ func TestApproveNonExistentLease(t *testing.T) {
 	handler := srv.Handler()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/leases/9999/approve", strings.NewReader(""))
-	req.Header.Set("Authorization", cliAuthHeader(t, db, "alice"))
+	req.Header.Set("Authorization", cliAdminAuthHeader(t, db, "alice"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

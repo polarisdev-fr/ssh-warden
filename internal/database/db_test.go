@@ -364,7 +364,7 @@ func TestUserTokenLifecycle(t *testing.T) {
 	db := mustOpen(t)
 	defer closeDB(t, db)
 
-	raw, err := db.CreateUserToken("alice", time.Hour)
+	raw, err := db.CreateUserToken("alice", "", time.Hour)
 	if err != nil {
 		t.Fatalf("CreateUserToken: %v", err)
 	}
@@ -372,21 +372,30 @@ func TestUserTokenLifecycle(t *testing.T) {
 		t.Errorf("token too short: %q", raw)
 	}
 
-	// Valid token resolves to the username.
-	if user, valid := db.ValidateUserToken(raw); !valid || user != "alice" {
-		t.Errorf("expected valid token for alice, got user=%q valid=%v", user, valid)
+	// Valid token resolves to the username; empty role defaults to "user".
+	if user, role, valid := db.ValidateUserToken(raw); !valid || user != "alice" || role != "user" {
+		t.Errorf("expected valid token for alice/user, got user=%q role=%q valid=%v", user, role, valid)
+	}
+
+	// A token minted with an explicit role preserves that role.
+	adminRaw, err := db.CreateUserToken("bob", "admin", time.Hour)
+	if err != nil {
+		t.Fatalf("CreateUserToken admin: %v", err)
+	}
+	if _, role, valid := db.ValidateUserToken(adminRaw); !valid || role != "admin" {
+		t.Errorf("expected admin role on token, got role=%q valid=%v", role, valid)
 	}
 
 	// Unknown / empty / tampered tokens are rejected.
-	if _, valid := db.ValidateUserToken("wrd_pat_tampered"); valid {
+	if _, _, valid := db.ValidateUserToken("wrd_pat_tampered"); valid {
 		t.Error("expected invalid for tampered token")
 	}
-	if _, valid := db.ValidateUserToken(""); valid {
+	if _, _, valid := db.ValidateUserToken(""); valid {
 		t.Error("expected invalid for empty token")
 	}
 
 	// Empty username is refused.
-	if _, err := db.CreateUserToken("", time.Hour); err == nil {
+	if _, err := db.CreateUserToken("", "", time.Hour); err == nil {
 		t.Error("expected error for empty username")
 	}
 }
@@ -395,11 +404,11 @@ func TestUserTokenExpired(t *testing.T) {
 	db := mustOpen(t)
 	defer closeDB(t, db)
 
-	raw, err := db.CreateUserToken("alice", -time.Minute)
+	raw, err := db.CreateUserToken("alice", "", -time.Minute)
 	if err != nil {
 		t.Fatalf("CreateUserToken: %v", err)
 	}
-	if _, valid := db.ValidateUserToken(raw); valid {
+	if _, _, valid := db.ValidateUserToken(raw); valid {
 		t.Error("expected expired token to be invalid")
 	}
 }

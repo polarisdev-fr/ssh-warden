@@ -4,10 +4,19 @@ package models
 
 import "time"
 
+// Role values describe the permission level of a user. Administrators can
+// manage every lease (approve/reject/revoke) and see all activity, whereas a
+// regular user can only manage their own leases and see their own activity.
+const (
+	RoleUser  = "user"
+	RoleAdmin = "admin"
+)
+
 // User represents a system account that can request temporary SSH access.
 type User struct {
 	ID        int64     `json:"id"`
 	Username  string    `json:"username"`
+	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -89,4 +98,30 @@ type SystemInfo struct {
 	AuthEnabled bool   `json:"auth_enabled"`
 	MTLSEnabled bool   `json:"mtls_enabled"`
 	DBPath      string `json:"db_path"`
+}
+
+// ActivityPoint aggregates authorization decisions for a single time bucket
+// (usually one day) used by the Overview activity chart.
+type ActivityPoint struct {
+	// Bucket is a short human label for the bucket (e.g. "09-02" or "14:00").
+	Bucket  string `json:"bucket"`
+	Granted int    `json:"granted"`
+	Denied  int    `json:"denied"`
+}
+
+// HostCount reports how many times a target host was granted access, used by
+// the Overview "top hosts" breakdown.
+type HostCount struct {
+	Host  string `json:"host"`
+	Count int    `json:"count"`
+}
+
+// Overview aggregates the metrics shown by the dashboard Overview view.
+type Overview struct {
+	ActiveLeasesCount  int             `json:"active_leases_count"`
+	PendingLeasesCount int             `json:"pending_leases_count"`
+	TotalGranted24h    int             `json:"total_granted_24h"`
+	TotalDenied24h     int             `json:"total_denied_24h"`
+	ActivityTimeline   []ActivityPoint `json:"activity_timeline"`
+	TopHosts           []HostCount     `json:"top_hosts"`
 }

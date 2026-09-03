@@ -14,13 +14,17 @@ import (
 //
 //	GET /api/v1/audit   list authorization audit events
 func (s *Server) registerAuditRoutes(r chi.Router) {
-	r.Get("/api/v1/audit", s.handleListAudit)
+	r.With(s.attachActor).Get("/api/v1/audit", s.handleListAudit)
 }
 
 // handleListAudit returns audit logs, optionally filtered by the "user" query
 // parameter and target host (the "host" parameter), and capped by "limit".
 func (s *Server) handleListAudit(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("user")
+	// A regular user may only see their own audit trail.
+	if forced := s.forcedUsername(r); forced != "" {
+		username = forced
+	}
 	targetHost := r.URL.Query().Get("host")
 
 	var limit int

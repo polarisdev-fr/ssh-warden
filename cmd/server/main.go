@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,6 +55,20 @@ func run() error {
 		os.Getenv("WARDEN_UI_USER"),
 		os.Getenv("WARDEN_UI_PASSWORD"),
 	)
+
+	// Role-based access control: explicit admin usernames (Basic/Local mode)
+	// and the OIDC admin group. WARDEN_ADMIN_USERS is a comma-separated list.
+	var adminUsers []string
+	if admins := os.Getenv("WARDEN_ADMIN_USERS"); admins != "" {
+		for _, u := range strings.Split(admins, ",") {
+			if u = strings.TrimSpace(u); u != "" {
+				adminUsers = append(adminUsers, u)
+			}
+		}
+	}
+	apiServer.WithRBAC(adminUsers, os.Getenv("WARDEN_ADMIN_GROUP"))
+	log.Printf("RBAC configured: %d admin users, admin group %q",
+		len(adminUsers), firstNonEmpty(os.Getenv("WARDEN_ADMIN_GROUP"), "warden-admins"))
 
 	// Optional OpenID Connect auth for the dashboard. When enabled it takes
 	// precedence over Basic Auth and mounts /auth/login, /auth/callback and
@@ -139,6 +154,14 @@ func run() error {
 	}
 	log.Println("SSH-Warden API stopped")
 	return nil
+}
+
+// firstNonEmpty returns a if it is non-empty, otherwise b.
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // newOIDCProvider builds and verifies the OpenID Connect provider from the

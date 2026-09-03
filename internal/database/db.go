@@ -47,6 +47,7 @@ func InitDB(dbPath string) (*DB, error) {
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE NOT NULL,
+		role TEXT NOT NULL DEFAULT 'user',
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
@@ -90,6 +91,7 @@ func InitDB(dbPath string) (*DB, error) {
 	CREATE TABLE IF NOT EXISTS user_tokens (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT 'user',
 		token_hash TEXT UNIQUE NOT NULL,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		expires_at DATETIME NOT NULL
@@ -115,7 +117,34 @@ func InitDB(dbPath string) (*DB, error) {
 		}
 	}
 
+	// Migration: add role column to users and user_tokens tables that predate
+	// the RBAC feature.
+	if err := addColumnIfMissing(conn, "users", "role", "TEXT NOT NULL DEFAULT 'user'"); err != nil {
+		return nil, fmt.Errorf("cannot migrate users schema: %w", err)
+	}
+	if err := addColumnIfMissing(conn, "user_tokens", "role", "TEXT NOT NULL DEFAULT 'user'"); err != nil {
+		return nil, fmt.Errorf("cannot migrate user_tokens schema: %w", err)
+	}
+
 	return &DB{conn: conn}, nil
+}
+
+// addColumnIfMissing runs an ALTER TABLE ADD COLUMN only when the named column
+// does not already exist on the table, making routine schema upgrades safe
+// against pre-existing databases.
+func addColumnIfMissing(conn *sql.DB, table, column, definition string) error {
+	var n int
+	if err := conn.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?",
+		table, column,
+	).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	_, err := conn.Exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition)
+	return err
 }
 
 // SeedData injects deterministic development data so the project can be

@@ -31,6 +31,25 @@ type Server struct {
 	dbPath string
 	// mtlsEnabled reports whether the server is serving with mTLS configured.
 	mtlsEnabled bool
+
+	// adminUsers are the usernames treated as admins in Basic/Local auth mode.
+	// When OIDC is enabled the admin role is instead derived from adminGroup.
+	adminUsers []string
+	// adminGroup is the OIDC group name that grants the admin role. Leave
+	// empty to use the default "warden-admins".
+	adminGroup string
+}
+
+// WithRSBAC configures role-based access control. adminUsers lists the
+// usernames promoted to admin in Basic/Local auth mode; adminGroup names the
+// OIDC group whose members become admins (empty means "warden-admins").
+func (s *Server) WithRBAC(adminUsers []string, adminGroup string) *Server {
+	s.adminUsers = adminUsers
+	if adminGroup == "" {
+		adminGroup = defaultAdminGroup
+	}
+	s.adminGroup = adminGroup
+	return s
 }
 
 // WithSystemInfo records deployment details used by the /api/v1/system
@@ -103,6 +122,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerLeasesRoutes(r)
 	s.registerAuditRoutes(r)
 	r.Get("/api/v1/system", systemHandler{s: s}.ServeHTTP)
+	r.With(s.attachActor).Get("/api/v1/overview", s.handleOverview)
 	s.registerUIRoutes(r)
 
 	return r
@@ -124,10 +144,16 @@ func (s *Server) registerUIRoutes(r chi.Router) {
 			}
 			return id.Username
 		}
+		auth.Role = s.currentUserRole
 	} else {
 		auth.Enabled = s.uiUser != "" && s.uiPassword != ""
 		auth.BasicUser = s.uiUser
 		auth.BasicPassword = s.uiPassword
+		auth.Identity = func(r *http.Request) string {
+			user, _, _ := r.BasicAuth()
+			return user
+		}
+		auth.Role = s.currentUserRole
 	}
 
 	// The CLI token-issuing endpoint and the /ui/cli-auth approve page share

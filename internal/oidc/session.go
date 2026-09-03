@@ -73,11 +73,12 @@ func NewSession(secret string, opts ...SessionOption) (*Session, error) {
 
 // payload is the signed, serializable claim carried in the session cookie.
 type payload struct {
-	Subject   string `json:"sub"`
-	Username  string `json:"username"`
-	Email     string `json:"email,omitempty"`
-	IssuedAt  int64  `json:"iat"`
-	ExpiresAt int64  `json:"exp"`
+	Subject   string   `json:"sub"`
+	Username  string   `json:"username"`
+	Email     string   `json:"email,omitempty"`
+	Groups    []string `json:"groups,omitempty"`
+	IssuedAt  int64    `json:"iat"`
+	ExpiresAt int64    `json:"exp"`
 }
 
 // sign produces "<b64(payloadJSON)>.<b64(HMAC-SHA256)>".
@@ -134,6 +135,9 @@ type Identity struct {
 	Subject  string
 	Username string
 	Email    string
+	// Groups are the OIDC group claims of the user, used by the API layer to
+	// derive the RBAC role (e.g. membership of an admin group).
+	Groups []string
 }
 
 // Set issues a fresh session cookie for the given identity.
@@ -143,6 +147,7 @@ func (s *Session) Set(w http.ResponseWriter, id Identity) error {
 		Subject:   id.Subject,
 		Username:  id.Username,
 		Email:     id.Email,
+		Groups:    id.Groups,
 		IssuedAt:  now.Unix(),
 		ExpiresAt: now.Add(s.ttl).Unix(),
 	}
@@ -172,7 +177,7 @@ func (s *Session) user(r *http.Request) (Identity, error) {
 	if err != nil {
 		return Identity{}, err
 	}
-	return Identity{Subject: p.Subject, Username: p.Username, Email: p.Email}, nil
+	return Identity{Subject: p.Subject, Username: p.Username, Email: p.Email, Groups: p.Groups}, nil
 }
 
 // Clear removes the session cookie.

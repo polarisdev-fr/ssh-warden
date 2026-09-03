@@ -109,10 +109,11 @@ func (pr *Provider) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Simple preferred_username/email claims from the verified ID token.
+	// Simple preferred_username/email/groups claims from the verified ID token.
 	var claims struct {
-		PreferredUsername string `json:"preferred_username"`
-		Email             string `json:"email"`
+		PreferredUsername string   `json:"preferred_username"`
+		Email             string   `json:"email"`
+		Groups            []string `json:"groups"`
 	}
 	if err := idTok.Claims(&claims); err != nil {
 		log.Printf("oidc: could not decode id_token claims: %v", err)
@@ -128,6 +129,7 @@ func (pr *Provider) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		Subject:  idTok.Subject,
 		Username: username,
 		Email:    claims.Email,
+		Groups:   claims.Groups,
 	}
 	if err := pr.session.Set(w, id); err != nil {
 		http.Error(w, "session creation failed", http.StatusInternalServerError)

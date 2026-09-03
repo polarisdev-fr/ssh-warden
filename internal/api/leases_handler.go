@@ -34,21 +34,28 @@ type createLeaseRequest struct {
 //	POST   /api/v1/leases/{id}/reject    reject a pending lease
 //	DELETE /api/v1/leases/{id}           revoke a lease
 func (s *Server) registerLeasesRoutes(r chi.Router) {
-	r.Get("/api/v1/leases", s.handleListLeases)
-	r.Get("/api/v1/leases/pending", s.handleListPendingLeases)
-
-	// Mutating lease routes require the CLI user token (Bearer). The public
-	// key-fetch endpoint for host helpers keeps its own Host Token auth.
+	// Listing endpoints accept an optional Bearer user token to scope a regular
+	// user to their own leases (anonymous callers see everything).
+	r.With(s.attachActor).Get("/api/v1/leases", s.handleListLeases)
+	r.With(s.attachActor).Get("/api/v1/leases/pending", s.handleListPendingLeases)
+	// approve and reject additionally require the admin role.
 	r.With(s.userTokenAuth).Post("/api/v1/leases", s.handleCreateLease)
-	r.With(s.userTokenAuth).Post("/api/v1/leases/{id}/approve", s.handleApproveLease)
-	r.With(s.userTokenAuth).Post("/api/v1/leases/{id}/reject", s.handleRejectLease)
-	r.With(s.userTokenAuth).Delete("/api/v1/leases/{id}", s.handleRevokeLease)
+	r.With(s.requireAuthActor, s.requireAdmin).Post("/api/v1/leases/{id}/approve", s.handleApproveLease)
+	r.With(s.requireAuthActor, s.requireAdmin).Post("/api/v1/leases/{id}/reject", s.handleRejectLease)
+	// revoke allows any authenticated user, but a regular user may only revoke
+	// their own leases (checked in the handler).
+	r.With(s.requireAuthActor).Delete("/api/v1/leases/{id}", s.handleRevokeLease)
 }
 
 // handleListLeases returns approved active leases, optionally filtered by the
 // "user" query parameter.
 func (s *Server) handleListLeases(w http.ResponseWriter, r *http.Request) {
 	user := r.URL.Query().Get("user")
+	if forced := s.forcedUsername(r); forced != "" {
+		// A regular user may only see their own leases regardless of the
+		// requested filter.
+		user = forced
+	}
 
 	leases, err := s.db.GetActiveLeases(user)
 	if err != nil {
@@ -65,8 +72,12 @@ func (s *Server) handleListLeases(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleListPendingLeases returns leases in the pending approval state.
+// Regular users only see their own pending leases.
 func (s *Server) handleListPendingLeases(w http.ResponseWriter, r *http.Request) {
 	user := r.URL.Query().Get("user")
+	if forced := s.forcedUsername(r); forced != "" {
+		user = forced
+	}
 
 	leases, err := s.db.GetPendingLeases(user)
 	if err != nil {
@@ -174,12 +185,21 @@ func (s *Server) handleRejectLease(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "lease rejected"})
 }
 
-// handleRevokeLease revokes a lease by ID and reports the outcome.
+// handleRevokeLease revokes a lease by ID and reports the outcome. Admins may
+// revoke any lease; a regular user may only revoke their own.
 func (s *Server) handleRevokeLease(w http.ResponseWriter, r *http.Request) {
 	leaseID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid lease id", http.StatusBadRequest)
 		return
+	}
+
+	if !s.isAdmin(r) {
+		owner, ok := s.db.GetLeaseOwner(leaseID)
+		if !ok || owner != s.requesterUser(r) {
+			http.Error(w, "forbidden: you may only revoke your own leases", http.StatusForbidden)
+			return
+		}
 	}
 
 	if err := s.db.RevokeLease(leaseID); err != nil {

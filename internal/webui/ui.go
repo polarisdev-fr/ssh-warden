@@ -27,6 +27,9 @@ type UIAuth struct {
 	BasicPassword string
 	// Identity returns the authenticated user ("" when anonymous).
 	Identity func(*http.Request) string
+	// Role returns the RBAC role of the authenticated user ("" when anonymous
+	// or when roles are not configured).
+	Role func(*http.Request) string
 }
 
 // RegisterUIRoutes registers GET /ui (and its assets) on the router, applying
@@ -93,14 +96,25 @@ func serveIndex(w http.ResponseWriter, r *http.Request, auth UIAuth) {
 	if auth.Identity != nil {
 		user = auth.Identity(r)
 	}
+	userRole := ""
+	if auth.Role != nil {
+		userRole = auth.Role(r)
+	}
 	if user != "" {
-		userBar = `<span class="username">` + strings.ReplaceAll(user, "&", "&amp;") +
-			`</span> <a href="/auth/logout" class="logout">Déconnexion</a>`
+		roleBadge := ""
+		if userRole != "" {
+			roleBadge = `<span class="role-badge role-` + userRole + `">` + userRole + `</span>`
+		}
+		userBar = `<span class="avatar">` + strings.ToUpper(string(user[0])) + `</span>`
+		userBar += `<span><span class="uname">` + strings.ReplaceAll(user, "&", "&amp;") +
+			`</span>` + roleBadge + `</span>`
+		userBar += `<a href="/auth/logout" class="logout">Déconnexion</a>`
 	}
 
 	body := string(data)
 	body = strings.ReplaceAll(body, "__AUTH_ENABLED__", enabled)
 	body = strings.ReplaceAll(body, "__USER_BAR__", userBar)
+	body = strings.ReplaceAll(body, "__USER_ROLE__", userRole)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// The dashboard is a single self-contained HTML document. Never cache it:

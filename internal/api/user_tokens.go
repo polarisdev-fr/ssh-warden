@@ -19,12 +19,12 @@ func (s *Server) userTokenAuth(next http.Handler) http.Handler {
 			http.Error(w, "authentication required", http.StatusUnauthorized)
 			return
 		}
-		username, valid := s.db.ValidateUserToken(token)
+		username, role, valid := s.db.ValidateUserToken(token)
 		if !valid {
 			http.Error(w, "invalid or expired user token", http.StatusUnauthorized)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(withUserName(r, username)))
+		next.ServeHTTP(w, r.WithContext(withUserName(r, username, role)))
 	})
 }
 
@@ -42,8 +42,9 @@ func (s *Server) handleCreateUserToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not determine authenticated user", http.StatusForbidden)
 		return
 	}
+	role := s.currentUserRole(r)
 
-	raw, err := s.db.CreateUserToken(username, tokenTTL)
+	raw, err := s.db.CreateUserToken(username, role, tokenTTL)
 	if err != nil {
 		http.Error(w, "could not create token", http.StatusInternalServerError)
 		return
@@ -54,5 +55,6 @@ func (s *Server) handleCreateUserToken(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"token":    raw,
 		"username": username,
+		"role":     role,
 	})
 }

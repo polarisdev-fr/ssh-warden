@@ -23,17 +23,22 @@ func hashUserToken(raw string) string {
 }
 
 // CreateUserToken generates a new opaque, prefixed token for username, stores
-// only its SHA-256 digest (with an expiry), and returns the raw token so the
-// caller can hand it to the user exactly once.
-func (db *DB) CreateUserToken(username string, duration time.Duration) (string, error) {
+// only its SHA-256 digest (with an expiry and the user's role), and returns the
+// raw token so the caller can hand it to the user exactly once. The role is
+// frozen at mint time so the token keeps its privilege even if the user's role
+// later changes.
+func (db *DB) CreateUserToken(username, role string, duration time.Duration) (string, error) {
 	if username == "" {
 		return "", errors.New("username is required")
+	}
+	if role == "" {
+		role = "user"
 	}
 
 	raw := userTokenPrefix + randomHex(48)
 	if _, err := db.conn.Exec(
-		"INSERT INTO user_tokens (username, token_hash, expires_at) VALUES (?, ?, ?)",
-		username, hashUserToken(raw), time.Now().UTC().Add(duration),
+		"INSERT INTO user_tokens (username, role, token_hash, expires_at) VALUES (?, ?, ?, ?)",
+		username, role, hashUserToken(raw), time.Now().UTC().Add(duration),
 	); err != nil {
 		return "", err
 	}
@@ -41,26 +46,25 @@ func (db *DB) CreateUserToken(username string, duration time.Duration) (string, 
 }
 
 // ValidateUserToken reports whether rawToken matches an unexpired stored
-// digest, returning the associated username when valid.
-func (db *DB) ValidateUserToken(rawToken string) (string, bool) {
+// digest, returning the associated username and role when valid.
+func (db *DB) ValidateUserToken(rawToken string) (username, role string, valid bool) {
 	if rawToken == "" {
-		return "", false
+		return "", "", false
 	}
 	computed := hashUserToken(rawToken)
 
-	var username string
 	var expiresAt time.Time
 	err := db.conn.QueryRow(
-		"SELECT username, expires_at FROM user_tokens WHERE token_hash = ?",
+		"SELECT username, role, expires_at FROM user_tokens WHERE token_hash = ?",
 		computed,
-	).Scan(&username, &expiresAt)
+	).Scan(&username, &role, &expiresAt)
 	if err != nil {
-		return "", false
+		return "", "", false
 	}
 	if time.Now().UTC().After(expiresAt) {
-		return "", false
+		return "", "", false
 	}
-	return username, true
+	return username, role, true
 }
 
 // randomHex returns n random bytes hex-encoded.
