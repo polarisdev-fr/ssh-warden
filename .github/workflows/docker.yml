@@ -16,7 +16,7 @@ on:
 env:
   # Set this to your Docker Hub namespace optionally via repo/org variable, or
   # change the default below.
-  IMAGE: ${{ vars.DOCKERHUB_USERNAME && format('{0}/ssh-warden', vars.DOCKERHUB_USERNAME) || 'polarisdev/ssh-warden' }}
+  IMAGE: ${{ vars.DOCKERHUB_USERNAME && format('{0}/ssh-warden', vars.DOCKERHUB_USERNAME) || 'fullgreenpolaris/ssh-warden' }}
 
 jobs:
   docker-publish:
