@@ -10,7 +10,7 @@ no background daemons, no shell wrappers, no lingering credentials.
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![CI](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/ci.yml/badge.svg)](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/ci.yml)
 [![Docker](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/docker.yml/badge.svg)](https://github.com/polarisdev-fr/ssh-warden/actions/workflows/docker.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/polarisdev/ssh-warden)](https://hub.docker.com/repository/docker/polarisdev/ssh-warden)
+[![Docker Pulls](https://img.shields.io/docker/pulls/fullgreenpolaris/ssh-warden)](https://hub.docker.com/repository/docker/fullgreenpolaris/ssh-warden)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -91,14 +91,14 @@ go build -o bin/ssh-warden-helper ./cmd/helper
 
 ### Docker (Docker Hub)
 
-Pre-built images are published to **Docker Hub** (`polarisdev/ssh-warden`,
+Pre-built images are published to **Docker Hub** (`fullgreenpolaris/ssh-warden`,
 tags `:vX.Y.Z` and `:latest`, linux/amd64 + arm64). Run it standalone:
 
 ```sh
 docker run -d --name ssh-warden \
   -p 8080:8080 \
   -v warden-data:/data \
-  polarisdev/ssh-warden:latest
+  fullgreenpolaris/ssh-warden:latest
 ```
 
 Or use the bundled compose manifest (persistent `./data`, configurable port):

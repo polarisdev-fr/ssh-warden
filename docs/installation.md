@@ -73,7 +73,7 @@ This guide covers two sides of the deployment:
 ### Method A — Docker / Docker Compose
 
 Pre-built images are published to **Docker Hub** under
-`polarisdev/ssh-warden` (or your own namespace). Each version tag `vX.Y.Z`
+`fullgreenpolaris/ssh-warden` (or your own namespace). Each version tag `vX.Y.Z`
 is built for **linux/amd64 and linux/arm64** and pushed both as
 `:vX.Y.Z` and `:latest` (see the `docker.yml` GitHub workflow).
 
@@ -93,11 +93,11 @@ persisted on a mounted volume. The server listens on `WARDEN_PORT` (default
 #### Pull and run
 
 ```sh
-docker pull polarisdev/ssh-warden:latest
+docker pull fullgreenpolaris/ssh-warden:latest
 docker run -d --name ssh-warden \
   -p 8080:8080 \
   -v warden-data:/data \
-  polarisdev/ssh-warden:latest
+  fullgreenpolaris/ssh-warden:latest
 ```
 
 #### Use the bundled Compose manifest
@@ -117,7 +117,7 @@ manifest (or environment variables):
 
 ```sh
 # .env
-WARDEN_IMAGE=polarisdev/ssh-warden:v0.7.0
+WARDEN_IMAGE=fullgreenpolaris/ssh-warden:v0.8.1
 WARDEN_HOST_PORT=9090       # host port -> container WARDEN_PORT
 WARDEN_PORT=8080            # port the server listens on inside the container
 WARDEN_UI_USER=admin        # uncomment matching lines in docker-compose.yml

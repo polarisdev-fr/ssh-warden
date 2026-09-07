@@ -30,6 +30,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /data
 
+ARG VERSION=dev
+LABEL org.opencontainers.image.title="SSH-Warden"
+LABEL org.opencontainers.image.description="Just-In-Time ephemeral SSH access management API"
+LABEL org.opencontainers.image.url="https://github.com/polarisdev-fr/ssh-warden"
+LABEL org.opencontainers.image.version="$VERSION"
+
 COPY --from=build /out/ssh-warden-server /usr/local/bin/ssh-warden-server
 COPY --from=build /out/warden-healthcheck /usr/local/bin/warden-healthcheck
 
@@ -37,8 +43,8 @@ COPY --from=build /out/warden-healthcheck /usr/local/bin/warden-healthcheck
 # here to keep warden.db across container restarts.
 VOLUME ["/data"]
 
-# Informational label (the server listens on WARDEN_PORT at runtime, default
-# 8080); this is only a hint for tooling.
+# Informational only: the server listens on WARDEN_PORT at runtime (default
+# 8080). This label is a hint for tooling, not a binding.
 EXPOSE 8080
 
 # Docker uses this executable as the healthcheck; it performs an HTTP GET to

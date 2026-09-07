@@ -10,7 +10,7 @@
 # The sqlite database is persisted on the ./data volume (warden.db).
 services:
   ssh-warden:
-    image: ${WARDEN_IMAGE:-polarisdev/ssh-warden:latest}
+    image: ${WARDEN_IMAGE:-fullgreenpolaris/ssh-warden:latest}
     container_name: ssh-warden
     restart: unless-stopped
     ports:
